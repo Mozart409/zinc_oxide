@@ -1,4 +1,4 @@
-use color_eyre::eyre::{Result, eyre};
+use color_eyre::eyre::Result;
 use git2::{Repository, StatusOptions};
 use gumdrop::Options;
 use std::{env, fs, path::PathBuf};
