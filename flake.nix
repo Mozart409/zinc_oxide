@@ -28,9 +28,6 @@
           docker
           docker-compose
           lazydocker
-          caddy
-          rust
-          cargo
         ];
 
         shellHook = ''
