@@ -23,3 +23,11 @@ jobs:
       run: cargo deb
     - name: Build rpm
       run: cargo generate-rpm
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          target/debian/*.deb
+          target/generate-rpm/*.rpm
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
