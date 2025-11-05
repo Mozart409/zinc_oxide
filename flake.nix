@@ -21,31 +21,21 @@
       # nix develop . --command fish
       devShells.default = pkgs.mkShell {
         buildInputs = with pkgs; [
-          nodejs_24
-          nodePackages.pnpm
-          ni
-          bun
-          docker
-          docker-compose
           lazydocker
+          bacon
+          cargo-deny
+          lefthook
+          cocogitto
+          just
         ];
 
         shellHook = ''
-          echo "node: $(node -v)"
-          echo "bun: $(bun -v)"
-          echo "To install dependencies, run: ni or bun install"
-
-          # Add user to docker group if not already added
-          if ! groups $USER | grep -q docker; then
-            echo "Note: You may need to add your user to the docker group:"
-            echo "sudo usermod -aG docker $USER"
-            echo "Then log out and back in, or run: newgrp docker"
-          fi
+          echo "Development environment is ready!"
         '';
       };
 
       packages.default = pkgs.writeShellScriptBin "setup-project" ''
-        pnpm install
+        cargo build
       '';
     });
 }
