@@ -8,3 +8,6 @@ deny: clear
 
 clear:
     clear
+
+test: clear
+    cargo test
