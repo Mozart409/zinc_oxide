@@ -13,6 +13,20 @@ categories = ["command-line-utilities"]
 exclude = ["/website", ]
 publish = false
 
+[package.metadata.deb]
+name = "zinc_oxide"
+maintainer = "Amadeus Mader <amadeus@mozart409.com>"
+copyright = "2025 Amadeus Mader"
+license-file = ["LICENSE"]
+section = "utility"
+priority = "optional"
+
+[package.metadata.generate-rpm]
+license = "MIT"
+assets = [
+     { source = "target/release/zinc_oxide", dest = "/usr/bin/zinc_oxide", mode = "755" },
+]
+
 [dependencies]
 color-eyre = { version = "0.6.5", default-features = false }
 gumdrop = "0.8.1"

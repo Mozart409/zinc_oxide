@@ -11,3 +11,9 @@ clear:
 
 test: clear
     cargo test
+
+deb: clear
+    cargo deb
+
+rpm: clear
+    cargo generate-rpm
