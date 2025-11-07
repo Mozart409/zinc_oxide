@@ -1,6 +1,6 @@
 [package]
 name = "zinc_oxide"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Amadeus Mader <amadeus@mozart409.com"]
 edition = "2024"
 description = "A rust cli that checks recursively for git projects and reports their statuses"
