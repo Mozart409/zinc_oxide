@@ -12,13 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --release
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test
       - uses: cargo-bins/cargo-binstall@main
       - name: Install cargo tools
         run: cargo binstall cargo-deb cargo-generate-rpm
       - name: Create deb
-        run: cargo generate-rpm
+        run: cargo deb
       - name: Create rpm
         run: cargo generate-rpm
