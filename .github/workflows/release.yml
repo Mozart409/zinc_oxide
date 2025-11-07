@@ -1,33 +1,31 @@
 name: Rust
-
 on:
   push:
     tags:
       - v*
-
 env:
   CARGO_TERM_COLOR: always
-
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
-    - name: Build Release
-      run: cargo build --release
-    - name: Run tests
-      run: cargo test
-    - name: Build deb
-      run: cargo deb
-    - name: Build rpm
-      run: cargo generate-rpm
-    - name: Upload Release Assets
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          target/debian/*.deb
-          target/generate-rpm/*.rpm
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
+      - name: Build Release
+        run: cargo build --release
+      - name: Run tests
+        run: cargo test
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Install cargo tools
+        run: cargo binstall cargo-deb cargo-generate-rpm
+      - name: Build deb
+        run: cargo deb
+      - name: Build rpm
+        run: cargo generate-rpm
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/debian/*.deb
+            target/generate-rpm/*.rpm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
