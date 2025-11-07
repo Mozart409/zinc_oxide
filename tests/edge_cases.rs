@@ -1,11 +1,11 @@
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;
 
 #[test]
 fn test_nonexistent_path() {
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg("/this/path/does/not/exist")
         .assert()
@@ -24,7 +24,7 @@ fn test_permission_denied_directory() {
     perms.set_mode(0o000);
     fs::set_permissions(&restricted_dir, perms).unwrap();
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(&restricted_dir)
         .assert()
@@ -52,7 +52,7 @@ fn test_symlink_loops() {
         std::os::unix::fs::symlink(&dir2, dir1.join("loop")).unwrap();
         std::os::unix::fs::symlink(&dir1, dir2.join("loop")).unwrap();
 
-        let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+        let mut cmd = cargo_bin_cmd!("zinc_oxide");
         cmd.arg("--path").arg(temp_dir.path()).assert().success(); // Should not hang or crash
     }
 }
@@ -71,7 +71,7 @@ fn test_very_deep_directory_structure() {
     // Add a git repo at the deepest level
     fs::create_dir(current_path.join(".git")).unwrap();
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path").arg(temp_dir.path()).assert().success();
 }
 
@@ -87,7 +87,7 @@ fn test_directory_with_many_files() {
         fs::write(repo_path.join(format!("file_{}.txt", i)), "content").unwrap();
     }
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path").arg(temp_dir.path()).assert().success();
 }
 
@@ -99,7 +99,7 @@ fn test_special_characters_in_paths() {
     fs::create_dir(&repo_path).unwrap();
     fs::create_dir(repo_path.join(".git")).unwrap();
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(temp_dir.path())
         .assert()
@@ -115,7 +115,7 @@ fn test_unicode_in_paths() {
     fs::create_dir(&repo_path).unwrap();
     fs::create_dir(repo_path.join(".git")).unwrap();
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path").arg(temp_dir.path()).assert().success();
 }
 
@@ -130,7 +130,7 @@ fn test_broken_symlinks() {
         // Create a broken symlink
         std::os::unix::fs::symlink(&target, &link).unwrap();
 
-        let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+        let mut cmd = cargo_bin_cmd!("zinc_oxide");
         cmd.arg("--path").arg(temp_dir.path()).assert().success();
     }
 }
@@ -144,6 +144,6 @@ fn test_empty_git_directory() {
 
     // Don't create any git files, just the .git directory
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path").arg(temp_dir.path()).assert().success();
 }

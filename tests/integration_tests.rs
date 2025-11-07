@@ -1,35 +1,35 @@
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 use tempfile::TempDir;
 
 #[test]
 fn test_cli_runs_without_arguments() {
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.assert().success();
 }
 
 #[test]
 fn test_cli_help_flag() {
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--help").assert().success();
 }
 
 #[test]
 fn test_cli_short_help_flag() {
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("-h").assert().success();
 }
 
 #[test]
 fn test_cli_with_valid_path() {
     let temp_dir = TempDir::new().unwrap();
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path").arg(temp_dir.path()).assert().success();
 }
 
 #[test]
 fn test_cli_with_invalid_path() {
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg("/nonexistent/path")
         .assert()
@@ -40,7 +40,7 @@ fn test_cli_with_invalid_path() {
 #[test]
 fn test_cli_with_files_flag() {
     let temp_dir = TempDir::new().unwrap();
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(temp_dir.path())
         .arg("--files")
@@ -51,7 +51,7 @@ fn test_cli_with_files_flag() {
 #[test]
 fn test_cli_with_empty_flag() {
     let temp_dir = TempDir::new().unwrap();
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(temp_dir.path())
         .arg("--empty")
@@ -62,7 +62,7 @@ fn test_cli_with_empty_flag() {
 #[test]
 fn test_cli_with_all_flags() {
     let temp_dir = TempDir::new().unwrap();
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.args(&[
         "--path",
         temp_dir.path().to_str().unwrap(),
@@ -82,7 +82,7 @@ fn test_cli_finds_git_repositories() {
     fs::create_dir(&repo_path).unwrap();
     fs::create_dir(repo_path.join(".git")).unwrap();
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path").arg(temp_dir.path()).assert().success();
 }
 
@@ -96,7 +96,7 @@ fn test_cli_shows_changed_files() {
     fs::create_dir(repo_path.join(".git")).unwrap();
     fs::write(repo_path.join("changed_file.txt"), "content").unwrap();
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     let result = cmd
         .arg("--path")
         .arg(temp_dir.path())

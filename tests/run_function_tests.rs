@@ -1,4 +1,4 @@
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use git2::{Repository, RepositoryInitOptions, Signature, Time};
 use predicates::prelude::*;
 use std::fs;
@@ -41,7 +41,7 @@ fn create_test_repo_with_changes(path: &tempfile::TempDir) {
 #[test]
 fn test_run_function_no_repositories() {
     let temp_dir = TempDir::new().unwrap();
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(temp_dir.path())
         .assert()
@@ -60,7 +60,7 @@ fn test_run_function_clean_repository() {
     init_opts.bare(false);
     Repository::init_opts(&repo_path, &init_opts).unwrap();
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(temp_dir.path())
         .assert()
@@ -73,7 +73,7 @@ fn test_run_function_repository_with_changes() {
     let temp_dir = TempDir::new().unwrap();
     create_test_repo_with_changes(&temp_dir);
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(temp_dir.path())
         .assert()
@@ -86,7 +86,7 @@ fn test_run_function_with_files_flag() {
     let temp_dir = TempDir::new().unwrap();
     create_test_repo_with_changes(&temp_dir);
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(temp_dir.path())
         .arg("--files")
@@ -106,7 +106,7 @@ fn test_run_function_with_empty_flag() {
     init_opts.bare(false);
     Repository::init_opts(&repo_path, &init_opts).unwrap();
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(temp_dir.path())
         .arg("--empty")
@@ -126,7 +126,7 @@ fn test_run_function_bare_repository() {
     init_opts.bare(true);
     Repository::init_opts(&repo_path, &init_opts).unwrap();
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(temp_dir.path())
         .arg("--empty")
@@ -148,7 +148,7 @@ fn test_run_function_multiple_repositories() {
     fs::create_dir(repo1.join(".git")).unwrap();
     fs::create_dir(repo2.join(".git")).unwrap();
 
-    let mut cmd = Command::cargo_bin("zinc_oxide").unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
         .arg(temp_dir.path())
         .assert()
