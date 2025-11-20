@@ -33,6 +33,7 @@
           lefthook
           cocogitto
           just
+          wrangler
         ];
 
         shellHook = ''
