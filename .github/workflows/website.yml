@@ -6,9 +6,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: Deploy to cf
     defaults:
       run:
+        shell: bash
         working-directory: ./website
     steps:
       - uses: actions/checkout@v4
@@ -16,3 +18,4 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          packageManager: pnpm
