@@ -6,6 +6,7 @@
     unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
+    wrangler-flake.url = "github:ryand56/wrangler";
   };
 
   outputs = {
@@ -14,10 +15,12 @@
     unstable,
     flake-utils,
     rust-overlay,
+    wrangler-flake,
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {
         inherit system;
+        config.allowUnfree = true;
         overlays = [rust-overlay.overlays.default];
       };
       rust = pkgs.rust-bin.stable."1.89.0".default;
@@ -33,10 +36,21 @@
           lefthook
           cocogitto
           just
+          pnpm
+          nodejs_24
+          ni
+          nix-ld
+          autoPatchelfHook
+          # wrangler
+          wrangler-flake.packages.${system}.wrangler
         ];
 
         shellHook = ''
+          export LD_LIBRARY_PATH=${pkgs.nix-ld}/lib:$LD_LIBRARY_PATH
+          export NIX_LD=${pkgs.glibc}/lib/ld-linux-x86-64.so.2
+          ./patch-workerd.sh
           echo "Development environment is ready!"
+
           cargo -V
         '';
       };
