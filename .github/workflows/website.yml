@@ -8,10 +8,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     name: Deploy to cf
-    defaults:
-      run:
-        shell: bash
-        working-directory: ./website
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -24,8 +20,10 @@ jobs:
         with:
           node-version: 24
           cache: 'pnpm'
+        working-directory: ./website
       - name: Install dependencies
         run: pnpm install
+        working-directory: ./website
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
