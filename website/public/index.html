@@ -1,113 +1,131 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <title>Zinc Oxide</title>
+    <meta charset="UTF-8">
+    <meta name="description" content="Documentation for zinc-oxide">
+    <meta name="keywords" content="Zinc Oxide rust cli">
+    <meta name="author" content="Amadeus Mader">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="reset.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://api.fonts.coollabs.io" crossorigin />
+    <link
+      href="https://api.fonts.coollabs.io/css2?family=IBM+Plex+Mono:wght@300;400&display=swap"
+      rel="stylesheet"
+    />
+  </head>
 
-<head>
-	<title>Zinc Oxide</title>
-	<meta charset="UTF-8">
-	<meta name="description" content="Documentation for zinc-oxide">
-	<meta name="keywords" content="Zinc Oxide rust cli">
-	<meta name="author" content="Amadeus Mader">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" href="style.css" />
-	<link rel="stylesheet" href="reset.css" />
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://api.fonts.coollabs.io" crossorigin />
-	<link href="https://api.fonts.coollabs.io/css2?family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet" />
-</head>
+  <body>
+    <main class="container">
+      <h1 class="ibm-plex-mono-regular">Zinc Oxide</h1>
+      <h2 class="ibm-plex-mono-light">Documentation</h2>
+      <section class="description">
+        <p class="ibm-plex-mono-regular">
+          A Rust CLI tool that recursively checks for git projects and reports
+          their statuses.
+        </p>
+        <p class="ibm-plex-mono-regular">
+          Zinc Oxide scans directories to find git repositories and displays
+          their current status, showing which repositories have uncommitted
+          changes. It's useful for managing multiple projects and ensuring all
+          your repositories are in a clean state.
+        </p>
+      </section>
 
-<body>
-	<main class="container">
-		<h1 class="ibm-plex-mono-regular">Zinc Oxide</h1>
-		<h2 class="ibm-plex-mono-light">Documentation</h2>
-		<section class="description">
-			<p class="ibm-plex-mono-regular">
-				A Rust CLI tool that recursively checks for git projects and reports their statuses.
-			</p>
-			<p class="ibm-plex-mono-regular">
-				Zinc Oxide scans directories to find git repositories and displays their current status, showing which
-				repositories have uncommitted changes. It's useful for managing multiple projects and ensuring all your
-				repositories are in a clean state.
-			</p>
-		</section>
+      <section class="installation">
+        <h3 class="ibm-plex-mono-regular">Installation</h3>
+        <div class="code-block">
+          <code>read https://github.com/mozart409/zinc_oxide</code>
+        </div>
+      </section>
 
-		<section class="installation">
-			<h3 class="ibm-plex-mono-regular">Installation</h3>
-			<div class="code-block">
-				<code>read https://github.com/mozart409/zinc_oxide</code>
-			</div>
-		</section>
+      <section class="usage">
+        <h3 class="ibm-plex-mono-regular">Usage</h3>
 
-		<section class="usage">
-			<h3 class="ibm-plex-mono-regular">Usage</h3>
+        <h4 class="ibm-plex-mono-light">Basic usage</h4>
+        <div class="code-block">
+          <code>zinc_oxide</code>
+        </div>
+        <p class="ibm-plex-mono-regular">
+          Searches the current directory recursively for git repositories and
+          reports their status.
+        </p>
 
-			<h4 class="ibm-plex-mono-light">Basic usage</h4>
-			<div class="code-block">
-				<code>zinc_oxide</code>
-			</div>
-			<p class="ibm-plex-mono-regular">Searches the current directory recursively for git repositories and reports their
-				status.</p>
+        <h4 class="ibm-plex-mono-light">Specify a path</h4>
+        <div class="code-block">
+          <code>zinc_oxide --path /path/to/search</code><br>
+          <code>zinc_oxide -p ~/code/</code>
+        </div>
 
-			<h4 class="ibm-plex-mono-light">Specify a path</h4>
-			<div class="code-block">
-				<code>zinc_oxide --path /path/to/search</code><br>
-				<code>zinc_oxide -p ~/code/</code>
-			</div>
+        <h4 class="ibm-plex-mono-light">Show individual files</h4>
+        <div class="code-block">
+          <code>zinc_oxide -f</code>
+        </div>
+        <p class="ibm-plex-mono-regular">
+          Shows the specific files that have uncommitted changes.
+        </p>
 
-			<h4 class="ibm-plex-mono-light">Show individual files</h4>
-			<div class="code-block">
-				<code>zinc_oxide -f</code>
-			</div>
-			<p class="ibm-plex-mono-regular">Shows the specific files that have uncommitted changes.</p>
+        <h4 class="ibm-plex-mono-light">Show empty repositories</h4>
+        <div class="code-block">
+          <code>zinc_oxide -e</code>
+        </div>
+        <p class="ibm-plex-mono-regular">
+          Includes repositories that have no uncommitted changes in the output.
+        </p>
 
-			<h4 class="ibm-plex-mono-light">Show empty repositories</h4>
-			<div class="code-block">
-				<code>zinc_oxide -e</code>
-			</div>
-			<p class="ibm-plex-mono-regular">Includes repositories that have no uncommitted changes in the output.</p>
+        <h4 class="ibm-plex-mono-light">Combine options</h4>
+        <div class="code-block">
+          <code>zinc_oxide --path ~/code -f -e</code>
+        </div>
+      </section>
 
-			<h4 class="ibm-plex-mono-light">Combine options</h4>
-			<div class="code-block">
-				<code>zinc_oxide --path ~/code -f -e</code>
-			</div>
-		</section>
+      <section class="options">
+        <h3 class="ibm-plex-mono-regular">Options</h3>
+        <ul class="ibm-plex-mono-regular">
+          <li><code>-h, --help</code>: Print help message</li>
+          <li>
+            <code>-p, --path &lt;p&gt;</code>: Check this absolute path
+            (defaults to current directory)
+          </li>
+          <li>
+            <code>-f, --files</code>: Show individual files with uncommitted
+            changes
+          </li>
+          <li>
+            <code>-e, --empty</code>: Show empty repositories (those with no
+            uncommitted changes)
+          </li>
+        </ul>
+      </section>
 
-		<section class="options">
-			<h3 class="ibm-plex-mono-regular">Options</h3>
-			<ul class="ibm-plex-mono-regular">
-				<li><code>-h, --help</code>: Print help message</li>
-				<li><code>-p, --path &lt;p&gt;</code>: Check this absolute path (defaults to current directory)</li>
-				<li><code>-f, --files</code>: Show individual files with uncommitted changes</li>
-				<li><code>-e, --empty</code>: Show empty repositories (those with no uncommitted changes)</li>
-			</ul>
-		</section>
+      <section class="examples">
+        <h3 class="ibm-plex-mono-regular">Examples</h3>
+        <div class="code-block">
+          <code># Search current directory for git repos with changes</code><br>
+          <code>zinc_oxide</code><br><br>
+          <code># Search a specific directory and show changed files</code><br>
+          <code>zinc_oxide --path ~/dev -f</code><br><br>
+          <code># Show all repositories including clean ones</code><br>
+          <code>zinc_oxide -e</code>
+        </div>
+      </section>
 
-		<section class="examples">
-			<h3 class="ibm-plex-mono-regular">Examples</h3>
-			<div class="code-block">
-				<code># Search current directory for git repos with changes</code><br>
-				<code>zinc_oxide</code><br><br>
-				<code># Search a specific directory and show changed files</code><br>
-				<code>zinc_oxide --path ~/dev -f</code><br><br>
-				<code># Show all repositories including clean ones</code><br>
-				<code>zinc_oxide -e</code>
-			</div>
-		</section>
-
-		<section class="features">
-			<h3 class="ibm-plex-mono-regular">Features</h3>
-			<ul class="ibm-plex-mono-regular">
-				<li>Recursive directory scanning for git repositories</li>
-				<li>Status reporting for uncommitted changes</li>
-				<li>File-level detail when requested</li>
-				<li>Hidden directory filtering</li>
-				<li>Bare repository detection and exclusion</li>
-				<li>Comprehensive test coverage</li>
-			</ul>
-		</section>
-	</main>
-	<footer>
-		<p class="ibm-plex-mono-regular">Author: Amadeus Mader</p>
-	</footer>
-</body>
-
+      <section class="features">
+        <h3 class="ibm-plex-mono-regular">Features</h3>
+        <ul class="ibm-plex-mono-regular">
+          <li>Recursive directory scanning for git repositories</li>
+          <li>Status reporting for uncommitted changes</li>
+          <li>File-level detail when requested</li>
+          <li>Hidden directory filtering</li>
+          <li>Bare repository detection and exclusion</li>
+          <li>Comprehensive test coverage</li>
+        </ul>
+      </section>
+    </main>
+    <footer>
+      <p class="ibm-plex-mono-regular">Author: Amadeus Mader</p>
+    </footer>
+  </body>
 </html>

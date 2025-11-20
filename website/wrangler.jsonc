@@ -4,7 +4,7 @@
   "main": "src/index.ts",
   "minify": true,
   "compatibility_date": "2025-11-20",
-  "assets": { "directory": "public"},
+  "assets": { "directory": "public" },
   // "compatibility_flags": [
   //   "nodejs_compat"
   // ],
@@ -34,14 +34,22 @@
   //   "binding": "AI"
   // },
   "observability": {
-    "enabled": true,
-    "head_sampling_rate": 1
-  }
-   ,
-    "routes": [
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+    },
+  },
+  "routes": [
     {
       "pattern": "zinc-oxide.mozart409.com",
-      "custom_domain": true
-    }
-  ]
+      "custom_domain": true,
+    },
+  ],
 }

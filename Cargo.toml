@@ -2,16 +2,16 @@
 name = "zinc_oxide"
 version = "0.1.1"
 authors = ["Amadeus Mader <amadeus@mozart409.com"]
-edition = "2024"
-description = "A rust cli that checks recursively for git projects and reports their statuses"
-readme = "README.md"
-homepage = "https://zinc-oxide.mozart409.com"
-license-file = "LICENSE"
-repository = "https://github.com/Mozart409/zinc_oxide"
-keywords = ["git", "cli"]
 categories = ["command-line-utilities"]
-exclude = ["/website", ]
+edition = "2024"
+exclude = ["/website"]
+homepage = "https://zinc-oxide.mozart409.com"
+keywords = ["git", "cli"]
+license-file = "LICENSE"
 publish = false
+readme = "README.md"
+repository = "https://github.com/Mozart409/zinc_oxide"
+description = "A rust cli that checks recursively for git projects and reports their statuses"
 
 [package.metadata.deb]
 name = "zinc_oxide"
@@ -24,16 +24,15 @@ priority = "optional"
 [package.metadata.generate-rpm]
 license = "MIT"
 assets = [
-     { source = "target/release/zinc_oxide", dest = "/usr/bin/zinc_oxide", mode = "755" },
+  { source = "target/release/zinc_oxide", dest = "/usr/bin/zinc_oxide", mode = "755" },
 ]
 
 [dependencies]
 color-eyre = { version = "0.6.5", default-features = false }
-gumdrop = "0.8.1"
 git2 = { version = "0.20.2", features = ["vendored-libgit2"] }
+gumdrop = "0.8.1"
 
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.0"
 tempfile = "3.8"
-

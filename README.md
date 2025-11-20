@@ -15,30 +15,38 @@ curl to bash
 ## Usage
 
 ### Basic usage
+
 ```bash
 zinc_oxide
 ```
+
 This will search the current directory recursively for git repositories and report their status.
 
 ### Specify a path
+
 ```bash
 zinc_oxide --path /path/to/search
 zinc_oxide -p ~/code/
 ```
 
 ### Show individual files
+
 ```bash
 zinc_oxide -f
 ```
+
 This will show the specific files that have uncommitted changes.
 
 ### Show empty repositories
+
 ```bash
 zinc_oxide -e
 ```
+
 This will include repositories that have no uncommitted changes in the output.
 
 ### Combine options
+
 ```bash
 zinc_oxide --path ~/code -f -e
 ```
