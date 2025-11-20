@@ -6,6 +6,7 @@
     unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
+    wrangler-flake.url = "github:ryand56/wrangler";
   };
 
   outputs = {
@@ -14,6 +15,7 @@
     unstable,
     flake-utils,
     rust-overlay,
+    wrangler-flake,
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {
@@ -33,7 +35,11 @@
           lefthook
           cocogitto
           just
-          wrangler
+          pnpm
+          nodejs_24
+          ni
+          # wrangler
+          wrangler-flake.packages.${system}.wrangler
         ];
 
         shellHook = ''
