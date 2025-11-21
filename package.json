@@ -1,7 +1,0 @@
-{
-  "name": "zinc-oxide",
-  "private": true,
-  "workspaces": [
-    "website"
-  ]
-}
