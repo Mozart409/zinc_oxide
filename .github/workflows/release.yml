@@ -1,12 +1,14 @@
-name: Rust
+name: Release Package
 on:
   push:
     tags:
       - v*
+permissions:
+  contents: write
 env:
   CARGO_TERM_COLOR: always
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -23,10 +25,9 @@ jobs:
       - name: Build rpm
         run: cargo generate-rpm
       - name: Upload Release Assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@2
         with:
-          files: |
-            target/debian/*.deb
-            target/generate-rpm/*.rpm
+          files: "target/debian/*.deb\ntarget/generate-rpm/*.rpm\nLICENSE \n"
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
