@@ -1,7 +1,6 @@
 {
   "name": "website",
   "type": "module",
-  "private": true,
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
