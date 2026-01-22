@@ -100,11 +100,7 @@ fn test_special_characters_in_paths() {
     fs::create_dir(repo_path.join(".git")).unwrap();
 
     let mut cmd = cargo_bin_cmd!("zinc_oxide");
-    cmd.arg("--path")
-        .arg(temp_dir.path())
-        .assert()
-        .success()
-        .stderr(predicates::str::contains("could not find repository")); // The CLI will try to open it as a git repo and fail
+    cmd.arg("--path").arg(temp_dir.path()).assert().success(); // Invalid repos are now skipped gracefully
 }
 
 #[test]
