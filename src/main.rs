@@ -3,10 +3,15 @@ use git2::{Repository, StatusOptions};
 use gumdrop::Options;
 use std::{env, fs, path::PathBuf};
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[derive(Debug, Options)]
 struct Args {
     #[options(help = "Print help message")]
     help: bool,
+
+    #[options(help = "Print version information", short = 'v')]
+    version: bool,
 
     #[options(help = "Check this absolute path", meta = "p")]
     path: Option<String>,
@@ -27,6 +32,11 @@ fn main() {
     color_eyre::install().unwrap();
 
     let args = Args::parse_args_default_or_exit();
+
+    if args.version {
+        println!("zinc_oxide {}", VERSION);
+        return;
+    }
 
     match run(&args) {
         Ok(()) => {}
@@ -128,7 +138,7 @@ fn display_results(
         return;
     }
 
-    println!("zinc_oxide cli");
+    println!("zinc_oxide v{}", VERSION);
     println!(
         "Searching for git repositories in: {}",
         search_path.display()
