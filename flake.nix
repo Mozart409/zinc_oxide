@@ -2,8 +2,7 @@
   description = "Development environment for a Node.js project";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
-    unstable.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
     wrangler-flake.url = "github:ryand56/wrangler";
@@ -12,7 +11,6 @@
   outputs = {
     self,
     nixpkgs,
-    unstable,
     flake-utils,
     rust-overlay,
     wrangler-flake,
@@ -33,6 +31,7 @@
           lazydocker
           opencode
           openssl
+          pkg-config
           bacon
           cargo-deny
           lefthook
@@ -50,6 +49,7 @@
         shellHook = ''
           export LD_LIBRARY_PATH=${pkgs.nix-ld}/lib:$LD_LIBRARY_PATH
           export NIX_LD=${pkgs.glibc}/lib/ld-linux-x86-64.so.2
+          export PKG_CONFIG_PATH="${pkgs.openssl.dev}/lib/pkgconfig:$PKG_CONFIG_PATH"
           ./patch-workerd.sh
           echo "Development environment is ready!"
 

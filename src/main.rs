@@ -53,8 +53,16 @@ fn find_git_repositories(dir: &PathBuf) -> Result<Vec<PathBuf>> {
 
     // Recursively search subdirectories
     if dir.is_dir() {
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
+        let entries = match fs::read_dir(dir) {
+            Ok(entries) => entries,
+            Err(_) => return Ok(repos), // Skip directories we can't read (permission denied, etc.)
+        };
+
+        for entry in entries {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => continue, // Skip entries we can't read
+            };
             let path = entry.path();
 
             if path.is_dir() && !path.file_name().unwrap().to_str().unwrap().starts_with('.') {
