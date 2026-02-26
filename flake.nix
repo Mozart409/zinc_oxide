@@ -23,7 +23,7 @@
         config.allowUnfree = true;
         overlays = [rust-overlay.overlays.default];
       };
-      rust = pkgs.rust-bin.stable."1.89.0".default;
+      rust = pkgs.rust-bin.stable."1.92.0".default;
     in {
       # to use other shells, run:
       # nix develop . --command fish
@@ -31,6 +31,8 @@
         buildInputs = with pkgs; [
           rust
           lazydocker
+          opencode
+          openssl
           bacon
           cargo-deny
           lefthook
