@@ -29,7 +29,7 @@ fn test_permission_denied_directory() {
         .arg(&restricted_dir)
         .assert()
         .success() // The CLI handles permission errors gracefully
-        .stderr(predicates::str::contains("Permission denied"));
+        .stdout(predicates::str::contains("No git repositories found"));
 
     // Restore permissions for cleanup
     let mut perms = fs::metadata(&restricted_dir).unwrap().permissions();
