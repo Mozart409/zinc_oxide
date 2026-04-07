@@ -29,7 +29,7 @@ assets = [
 
 [dependencies]
 color-eyre = { version = "0.6.5", default-features = false }
-git2 = { version = "0.20.2", features = ["vendored-libgit2"] }
+git2 = { version = "0.20.4", features = ["vendored-libgit2"] }
 gumdrop = "0.8.1"
 
 [dev-dependencies]
