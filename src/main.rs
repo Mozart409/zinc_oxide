@@ -1,7 +1,14 @@
 use color_eyre::eyre::Result;
 use git2::{Repository, StatusOptions};
 use gumdrop::Options;
-use std::{env, fs, path::Path, path::PathBuf, process::Command};
+#[cfg(feature = "nix")]
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    process::{self, Command},
+    time::{SystemTime, UNIX_EPOCH},
+};
+use std::{env, fs, path::Path, path::PathBuf};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -28,7 +35,7 @@ struct Args {
     )]
     compact: bool,
 
-    #[options(help = "Check flake.nix files for updates", short = 'F')]
+    #[options(help = "Check Nix flakes for lock updates", short = 'F')]
     flakes: bool,
 }
 fn main() {
@@ -77,6 +84,7 @@ fn find_git_repositories(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(repos)
 }
 
+#[cfg(feature = "nix")]
 fn find_flake_projects(dir: &Path) -> Result<Vec<PathBuf>> {
     let mut flakes = Vec::new();
 
@@ -106,6 +114,10 @@ fn find_flake_projects(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(flakes)
 }
 
+fn flakes_enabled(args: &Args) -> bool {
+    args.flakes
+}
+
 struct RepoStatus {
     path: PathBuf,
     uncommitted_count: usize,
@@ -119,86 +131,82 @@ struct FlakeStatus {
     update_output: Option<String>,
 }
 
+#[cfg(feature = "nix")]
 fn check_flake_updates(flake_path: &Path) -> FlakeStatus {
     let has_lock_file = flake_path.join("flake.lock").exists();
     let mut updates_available = None;
     let mut update_output = None;
 
-    if has_lock_file {
-        // Backup the current lock file
-        let lock_path = flake_path.join("flake.lock");
-        let backup_path = flake_path.join("flake.lock.backup");
-        
-        if let Err(e) = fs::copy(&lock_path, &backup_path) {
-            update_output = Some(format!("Failed to backup lock file: {}", e));
-        } else {
-            // Run nix flake update to see what would change
-            let output = Command::new("nix")
-                .args(["flake", "update"])
-                .current_dir(flake_path)
-                .output();
+    if !has_lock_file {
+        return FlakeStatus {
+            path: flake_path.to_path_buf(),
+            has_lock_file,
+            updates_available,
+            update_output,
+        };
+    }
 
-            match output {
-                Ok(result) => {
-                    let stdout = String::from_utf8_lossy(&result.stdout);
-                    let stderr = String::from_utf8_lossy(&result.stderr);
-                    let combined = format!("{}{}", stdout, stderr);
+    let lock_path = flake_path.join("flake.lock");
+    let output_lock_path = temporary_lock_path(flake_path);
+    let old_content = match fs::read_to_string(&lock_path) {
+        Ok(content) => content,
+        Err(e) => {
+            return FlakeStatus {
+                path: flake_path.to_path_buf(),
+                has_lock_file,
+                updates_available,
+                update_output: Some(format!("Failed to read lock file: {e}")),
+            };
+        }
+    };
 
-                    // Compare old and new lock files
-                    let old_content = match fs::read_to_string(&backup_path) {
-                        Ok(content) => content,
-                        Err(_) => {
-                            let _ = fs::remove_file(&backup_path);
-                            updates_available = None;
-                            update_output = Some("Failed to read backup lock file".to_string());
-                            return FlakeStatus {
-                                path: flake_path.to_path_buf(),
-                                has_lock_file,
-                                updates_available,
-                                update_output,
-                            };
+    let output = Command::new("nix")
+        .args(["flake", "update", "--flake"])
+        .arg(flake_path)
+        .arg("--output-lock-file")
+        .arg(&output_lock_path)
+        .output();
+
+    match output {
+        Ok(result) => {
+            let stdout = String::from_utf8_lossy(&result.stdout);
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            let combined = format!("{}{}", stdout, stderr);
+
+            if !result.status.success() {
+                update_output = Some(if combined.trim().is_empty() {
+                    format!("nix command failed with status {}", result.status)
+                } else {
+                    combined.trim().to_string()
+                });
+            } else {
+                match fs::read_to_string(&output_lock_path) {
+                    Ok(new_content) => {
+                        let has_updates = old_content != new_content;
+                        updates_available = Some(has_updates);
+
+                        if has_updates {
+                            update_output = Some(if combined.trim().is_empty() {
+                                "Lock file differs after update".to_string()
+                            } else {
+                                combined.trim().to_string()
+                            });
+                        } else {
+                            update_output = Some("No updates available".to_string());
                         }
-                    };
-
-                    let new_content = match fs::read_to_string(&lock_path) {
-                        Ok(content) => content,
-                        Err(_) => {
-                            let _ = fs::remove_file(&backup_path);
-                            updates_available = None;
-                            update_output = Some("Failed to read updated lock file".to_string());
-                            return FlakeStatus {
-                                path: flake_path.to_path_buf(),
-                                has_lock_file,
-                                updates_available,
-                                update_output,
-                            };
-                        }
-                    };
-
-                    // Check if files are different
-                    let has_updates = old_content != new_content;
-                    updates_available = Some(has_updates);
-
-                    if has_updates {
-                        // Extract what changed from the output
-                        update_output = Some(combined.trim().to_string());
-                    } else {
-                        update_output = Some("No updates available".to_string());
                     }
-
-                    // Restore the original lock file
-                    let _ = fs::remove_file(&lock_path);
-                    let _ = fs::rename(&backup_path, &lock_path);
-                }
-                Err(e) => {
-                    // Clean up backup on error
-                    let _ = fs::remove_file(&backup_path);
-                    updates_available = None;
-                    update_output = Some(format!("nix command failed: {}", e));
+                    Err(e) => {
+                        update_output = Some(format!("Failed to read generated lock file: {e}"));
+                    }
                 }
             }
         }
+        Err(e) => {
+            update_output = Some(format!("nix command failed: {e}"));
+        }
     }
+
+    let _ = fs::remove_file(&output_lock_path);
 
     FlakeStatus {
         path: flake_path.to_path_buf(),
@@ -206,6 +214,49 @@ fn check_flake_updates(flake_path: &Path) -> FlakeStatus {
         updates_available,
         update_output,
     }
+}
+
+#[cfg(feature = "nix")]
+fn temporary_lock_path(flake_path: &Path) -> PathBuf {
+    let mut hasher = DefaultHasher::new();
+    flake_path.hash(&mut hasher);
+    let path_hash = hasher.finish();
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+
+    env::temp_dir().join(format!(
+        "zinc_oxide-flake-lock-{}-{path_hash:x}-{timestamp}.lock",
+        process::id()
+    ))
+}
+
+#[cfg(feature = "nix")]
+fn collect_flake_statuses(args: &Args, search_path: &Path) -> Result<(Vec<FlakeStatus>, usize)> {
+    if !flakes_enabled(args) {
+        return Ok((Vec::new(), 0));
+    }
+
+    let flake_paths = find_flake_projects(search_path)?;
+    let total_flakes = flake_paths.len();
+    let flake_statuses = flake_paths
+        .iter()
+        .map(|flake_path| check_flake_updates(flake_path))
+        .collect();
+
+    Ok((flake_statuses, total_flakes))
+}
+
+#[cfg(not(feature = "nix"))]
+fn collect_flake_statuses(args: &Args, _search_path: &Path) -> Result<(Vec<FlakeStatus>, usize)> {
+    if args.flakes {
+        return Err(color_eyre::eyre::eyre!(
+            "Nix flake checks require building with `--features nix`"
+        ));
+    }
+
+    Ok((Vec::new(), 0))
 }
 
 fn run(args: &Args) -> Result<()> {
@@ -254,18 +305,7 @@ fn run(args: &Args) -> Result<()> {
         });
     }
 
-    let mut flake_statuses = Vec::new();
-    let mut total_flakes = 0;
-
-    if args.flakes {
-        let flakes = find_flake_projects(&search_path)?;
-        total_flakes = flakes.len();
-
-        for flake_path in flakes {
-            let status = check_flake_updates(&flake_path);
-            flake_statuses.push(status);
-        }
-    }
+    let (flake_statuses, total_flakes) = collect_flake_statuses(args, &search_path)?;
 
     display_results(
         &repo_statuses,
@@ -287,7 +327,9 @@ fn display_results(
     total_repos: usize,
     total_flakes: usize,
 ) {
-    if args.compact && !args.flakes {
+    let include_flakes = flakes_enabled(args);
+
+    if args.compact && !include_flakes {
         let count = repo_statuses
             .iter()
             .filter(|r| r.uncommitted_count > 0)
@@ -296,7 +338,7 @@ fn display_results(
         return;
     }
 
-    if args.compact && args.flakes {
+    if args.compact && include_flakes {
         let repo_count = repo_statuses
             .iter()
             .filter(|r| r.uncommitted_count > 0)
@@ -336,12 +378,12 @@ fn display_results(
         }
     }
 
-    if args.flakes {
+    if include_flakes {
         println!();
         if total_flakes == 0 {
-            println!("No flake.nix files found.");
+            println!("No Nix flakes found.");
         } else {
-            println!("Found {} flake.nix files:", total_flakes);
+            println!("Found {} Nix flakes:", total_flakes);
 
             for flake in flake_statuses {
                 println!("\n--- Flake: {} ---", flake.path.display());
@@ -352,7 +394,9 @@ fn display_results(
                     match flake.updates_available {
                         Some(true) => {
                             println!("Updates available!");
-                            if args.files && let Some(output) = &flake.update_output {
+                            if args.files
+                                && let Some(output) = &flake.update_output
+                            {
                                 for line in output.lines() {
                                     if line.contains("Updated") || line.contains("updated") {
                                         println!("  {}", line);
@@ -469,14 +513,18 @@ mod tests {
         let args = Args::parse_args_default(&["-c"]).unwrap();
         assert!(args.compact);
 
-        // Test flakes flag
-        let args = Args::parse_args_default(&["--flakes"]).unwrap();
-        assert!(args.flakes);
-        let args = Args::parse_args_default(&["-F"]).unwrap();
-        assert!(args.flakes);
+        #[cfg(feature = "nix")]
+        {
+            // Test flakes flag
+            let args = Args::parse_args_default(&["--flakes"]).unwrap();
+            assert!(args.flakes);
+            let args = Args::parse_args_default(&["-F"]).unwrap();
+            assert!(args.flakes);
+        }
     }
 
     #[test]
+    #[cfg(feature = "nix")]
     fn test_find_flake_projects_empty_directory() {
         let temp_dir = TempDir::new().unwrap();
         let flakes = find_flake_projects(temp_dir.path()).unwrap();
@@ -484,6 +532,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "nix")]
     fn test_find_flake_projects_single_flake() {
         let temp_dir = TempDir::new().unwrap();
 
@@ -496,6 +545,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "nix")]
     fn test_find_flake_projects_nested_flakes() {
         let temp_dir = TempDir::new().unwrap();
 
@@ -518,6 +568,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "nix")]
     fn test_find_flake_projects_ignores_hidden_dirs() {
         let temp_dir = TempDir::new().unwrap();
 
@@ -537,10 +588,22 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "nix")]
     fn test_find_flake_projects_nonexistent_directory() {
         let nonexistent = PathBuf::from("/nonexistent/path");
         let result = find_flake_projects(&nonexistent);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 0);
+    }
+
+    #[test]
+    #[cfg(feature = "nix")]
+    fn test_temporary_lock_path_is_outside_flake_project() {
+        let temp_dir = TempDir::new().unwrap();
+        let lock_path = temporary_lock_path(temp_dir.path());
+
+        assert!(lock_path.starts_with(env::temp_dir()));
+        assert!(!lock_path.starts_with(temp_dir.path()));
+        assert_ne!(lock_path.file_name().unwrap(), "flake.lock");
     }
 }

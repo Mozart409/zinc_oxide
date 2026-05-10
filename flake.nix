@@ -2,9 +2,8 @@
   description = "Development environment for a Node.js project";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    rust-overlay.url = "github:oxalica/rust-overlay";
     wrangler-flake.url = "github:ryand56/wrangler";
   };
 
@@ -12,38 +11,43 @@
     self,
     nixpkgs,
     flake-utils,
-    rust-overlay,
     wrangler-flake,
   }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {
         inherit system;
         config.allowUnfree = true;
-        overlays = [rust-overlay.overlays.default];
       };
-      rust = pkgs.rust-bin.stable."1.94.0".default;
     in {
       # to use other shells, run:
       # nix develop . --command fish
       devShells.default = pkgs.mkShell {
         buildInputs = with pkgs; [
-          rust
+          # keep-sorted start
+          autoPatchelfHook
+          cargo
+          cargo-audit
+          cargo-deny
+          cargo-workspaces
+          claude-code
+          clippy
+          cocogitto
+          just
+          keep-sorted
           lazydocker
+          lefthook
+          ni
+          nix-ld
+          nodejs_24
           opencode
           openssl
           pkg-config
-          bacon
-          cargo-deny
-          lefthook
-          cocogitto
-          just
           pnpm
-          nodejs_24
-          ni
-          nix-ld
-          autoPatchelfHook
+          rustc
+          rustfmt
           # wrangler
           wrangler-flake.packages.${system}.wrangler
+          # keep-sorted end
         ];
 
         shellHook = ''
@@ -56,9 +60,5 @@
           cargo -V
         '';
       };
-
-      packages.default = pkgs.writeShellScriptBin "setup-project" ''
-        cargo build
-      '';
     });
 }

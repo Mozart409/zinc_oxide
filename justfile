@@ -1,7 +1,7 @@
 set dotenv-load
-
+set unstable
 default:
-    bacon run-long
+    just --choose
 
 deny: clear
     cargo deny check

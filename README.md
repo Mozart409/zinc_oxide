@@ -51,12 +51,24 @@ This will include repositories that have no uncommitted changes in the output.
 zinc_oxide --path ~/code -f -e
 ```
 
+### Check Nix flake locks
+
+The Nix flake lock checker is behind the optional `nix` feature:
+
+```bash
+cargo install --path . --features nix
+zinc_oxide --path ~/code --flakes
+```
+
+This checks discovered Nix flakes for possible `flake.lock` updates without modifying the existing lock files.
+
 ## Options
 
 - `-h, --help`: Print help message
 - `-p, --path <p>`: Check this absolute path (defaults to current directory)
 - `-f, --files`: Show individual files with uncommitted changes
 - `-e, --empty`: Show empty repositories (those with no uncommitted changes)
+- `-F, --flakes`: Check Nix flakes for lock updates, when built with `--features nix`
 
 ## Examples
 
