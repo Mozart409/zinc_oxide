@@ -25,9 +25,12 @@ jobs:
       - name: Build rpm
         run: cargo generate-rpm
       - name: Upload Release Assets
-        uses: softprops/action-gh-release@2
+        uses: softprops/action-gh-release@v2
         with:
-          files: "target/debian/*.deb\ntarget/generate-rpm/*.rpm\nLICENSE \n"
+          files: |
+            target/debian/*.deb
+            target/generate-rpm/*.rpm
+            LICENSE
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
