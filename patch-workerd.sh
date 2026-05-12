@@ -1,27 +1,38 @@
 #!/usr/bin/env bash
 # Patch dynamically linked binaries in node_modules for NixOS
+set -euo pipefail
 
 echo "Patching workerd binary for NixOS..."
 
-WORKERD_PATH="./website/node_modules/.pnpm/@cloudflare+workerd-linux-64@*/bin/workerd"
+mapfile -t WORKERD_BINS < <(find ./website/node_modules -name "workerd" -type f -executable 2>/dev/null)
 
-# Find the workerd binary
-WORKERD_BIN=$(find ./website/node_modules -name "workerd" -type f -executable 2>/dev/null | head -1)
-
-if [ -z "$WORKERD_BIN" ]; then
+if [ "${#WORKERD_BINS[@]}" -eq 0 ]; then
     echo "Could not find workerd binary"
     exit 1
 fi
 
-echo "Found workerd at: $WORKERD_BIN"
-
-# Patch the binary using patchelf
-if command -v patchelf >/dev/null 2>&1; then
-    patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$WORKERD_BIN"
-    echo "Patched workerd binary"
-else
-    echo "patchelf not found, installing..."
-    nix-shell -p patchelf --run "patchelf --set-interpreter \$(cat \$NIX_CC/nix-support/dynamic-linker) $WORKERD_BIN"
+if ! command -v patchelf >/dev/null 2>&1; then
+    echo "patchelf not found on PATH — enter the nix dev shell first (nix develop)"
+    exit 1
 fi
 
-echo "Done!"
+INTERPRETER=$(cat "$NIX_CC/nix-support/dynamic-linker")
+patched=0
+
+for bin in "${WORKERD_BINS[@]}"; do
+    if ! file -b "$bin" 2>/dev/null | grep -q ELF; then
+        echo "Skipping (not ELF): $bin"
+        continue
+    fi
+    echo "Found workerd at: $bin"
+    patchelf --set-interpreter "$INTERPRETER" "$bin"
+    echo "Patched: $bin"
+    patched=$((patched + 1))
+done
+
+if [ "$patched" -eq 0 ]; then
+    echo "No ELF workerd binaries found to patch"
+    exit 1
+fi
+
+echo "Done! Patched $patched binary(ies)."
