@@ -64,7 +64,7 @@ fn test_very_deep_directory_structure() {
 
     // Create a deep directory structure (100 levels deep)
     for i in 0..100 {
-        current_path = current_path.join(format!("level_{}", i));
+        current_path = current_path.join(format!("level_{i}"));
         fs::create_dir(&current_path).unwrap();
     }
 
@@ -84,7 +84,7 @@ fn test_directory_with_many_files() {
 
     // Create many files
     for i in 0..1000 {
-        fs::write(repo_path.join(format!("file_{}.txt", i)), "content").unwrap();
+        fs::write(repo_path.join(format!("file_{i}.txt")), "content").unwrap();
     }
 
     let mut cmd = cargo_bin_cmd!("zinc_oxide");

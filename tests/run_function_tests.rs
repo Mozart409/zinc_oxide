@@ -17,8 +17,7 @@ fn create_test_repo_with_changes(path: &tempfile::TempDir) {
     // Create initial commit
     let tree_id = {
         let mut index = repo.index().unwrap();
-        let tree_id = index.write_tree().unwrap();
-        tree_id
+        index.write_tree().unwrap()
     };
 
     let tree = repo.find_tree(tree_id).unwrap();

@@ -63,7 +63,7 @@ fn test_cli_with_empty_flag() {
 fn test_cli_with_all_flags() {
     let temp_dir = TempDir::new().unwrap();
     let mut cmd = cargo_bin_cmd!("zinc_oxide");
-    cmd.args(&[
+    cmd.args([
         "--path",
         temp_dir.path().to_str().unwrap(),
         "--files",
