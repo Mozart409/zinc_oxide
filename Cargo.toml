@@ -1,6 +1,6 @@
 [package]
 name = "zinc_oxide"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Amadeus Mader <amadeus@mozart409.com"]
 categories = ["command-line-utilities"]
 edition = "2024"
