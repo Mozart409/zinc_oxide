@@ -8,7 +8,8 @@ pre-commit:
       run: keep-sorted --mode=lint {all_files}
       glob: "*.nix"
     - name: dprint fmt
-      run: dprint fmt {staged_files}
+      glob: "*.{ts,tsx,js,jsx,cjs,mjs,json,jsonc,md,toml,yml,yaml,html,htm,css,scss,less,vue,svelte,astro}"
+      run: dprint fmt --allow-no-files {staged_files}
       stage_fixed: true
     - name: cargo clippy pedantic
       run: cargo clippy --all-targets -- -D warnings -W clippy::pedantic
