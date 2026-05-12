@@ -4,7 +4,7 @@
     <title>Zinc Oxide</title>
     <meta charset="UTF-8">
     <meta name="description" content="Documentation for zinc-oxide">
-    <meta name="keywords" content="Zinc Oxide rust cli">
+    <meta name="keywords" content="Zinc Oxide rust cli nix flake">
     <meta name="author" content="Amadeus Mader">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css" />
@@ -79,6 +79,21 @@
         <div class="code-block">
           <code>zinc_oxide --path ~/code -f -e</code>
         </div>
+
+        <h4 class="ibm-plex-mono-light">Check Nix flake locks</h4>
+        <div class="code-block">
+          <code>cargo install --path . --features nix</code><br>
+          <code>zinc_oxide --path ~/code --flakes</code><br>
+          <code>zinc_oxide -F -p ~/code/rust/axon-gateway</code>
+        </div>
+        <p class="ibm-plex-mono-regular">
+          Recursively discovers directories containing a
+          <code>flake.nix</code> and checks each one for available
+          <code>flake.lock</code> updates. The check runs against a throwaway
+          lock path, so your existing <code>flake.lock</code> files are never
+          modified. Requires building with the <code>nix</code> Cargo feature
+          and having the <code>nix</code> CLI on <code>PATH</code>.
+        </p>
       </section>
 
       <section class="options">
@@ -97,6 +112,10 @@
             <code>-e, --empty</code>: Show empty repositories (those with no
             uncommitted changes)
           </li>
+          <li>
+            <code>-F, --flakes</code>: Check Nix flakes for lock updates (build
+            with <code>--features nix</code>)
+          </li>
         </ul>
       </section>
 
@@ -108,7 +127,9 @@
           <code># Search a specific directory and show changed files</code><br>
           <code>zinc_oxide --path ~/dev -f</code><br><br>
           <code># Show all repositories including clean ones</code><br>
-          <code>zinc_oxide -e</code>
+          <code>zinc_oxide -e</code><br><br>
+          <code># Check Nix flakes for available lock updates (non-mutating)</code><br>
+          <code>zinc_oxide -F -p ~/code</code>
         </div>
       </section>
 
@@ -120,6 +141,10 @@
           <li>File-level detail when requested</li>
           <li>Hidden directory filtering</li>
           <li>Bare repository detection and exclusion</li>
+          <li>
+            Optional Nix flake lock-update checker (non-mutating; behind the
+            <code>nix</code> Cargo feature)
+          </li>
           <li>Comprehensive test coverage</li>
         </ul>
       </section>
