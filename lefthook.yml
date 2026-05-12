@@ -9,6 +9,7 @@ pre-commit:
       glob: "*.nix"
     - name: dprint fmt
       run: dprint fmt {staged_files}
+      stage_fixed: true
     - name: cargo clippy pedantic
       run: cargo clippy --all-targets -- -D warnings -W clippy::pedantic
     - name: cargo test

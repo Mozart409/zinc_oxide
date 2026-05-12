@@ -15,9 +15,19 @@
   },
   "yaml": {
   },
+  "includes": [
+    "**/*.{ts,tsx,js,jsx,cjs,mjs,json,jsonc,md,toml,yml,yaml,html,htm,css,scss,less,vue,svelte,astro}"
+  ],
   "excludes": [
     "**/node_modules",
-    "**/*-lock.json"
+    "**/target",
+    "**/.wrangler",
+    "**/dist",
+    "**/build",
+    "**/*-lock.json",
+    "**/pnpm-lock.yaml",
+    "Cargo.lock",
+    "flake.lock"
   ],
   "plugins": [
     "https://plugins.dprint.dev/typescript-0.95.12.wasm",
