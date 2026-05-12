@@ -13,6 +13,7 @@ use std::{env, fs, path::Path, path::PathBuf};
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Options)]
+#[allow(clippy::struct_excessive_bools)] // CLI flags
 struct Args {
     #[options(help = "Print help message")]
     help: bool,
@@ -44,7 +45,7 @@ fn main() {
     let args = Args::parse_args_default_or_exit();
 
     if args.version {
-        println!("zinc_oxide {}", VERSION);
+        println!("zinc_oxide {VERSION}");
         return;
     }
 
@@ -63,15 +64,13 @@ fn find_git_repositories(dir: &Path) -> Result<Vec<PathBuf>> {
 
     // Recursively search subdirectories
     if dir.is_dir() {
-        let entries = match fs::read_dir(dir) {
-            Ok(entries) => entries,
-            Err(_) => return Ok(repos), // Skip directories we can't read (permission denied, etc.)
+        let Ok(entries) = fs::read_dir(dir) else {
+            return Ok(repos); // Skip directories we can't read (permission denied, etc.)
         };
 
         for entry in entries {
-            let entry = match entry {
-                Ok(e) => e,
-                Err(_) => continue, // Skip entries we can't read
+            let Ok(entry) = entry else {
+                continue; // Skip entries we can't read
             };
             let path = entry.path();
 
@@ -93,15 +92,13 @@ fn find_flake_projects(dir: &Path) -> Result<Vec<PathBuf>> {
     }
 
     if dir.is_dir() {
-        let entries = match fs::read_dir(dir) {
-            Ok(entries) => entries,
-            Err(_) => return Ok(flakes),
+        let Ok(entries) = fs::read_dir(dir) else {
+            return Ok(flakes);
         };
 
         for entry in entries {
-            let entry = match entry {
-                Ok(e) => e,
-                Err(_) => continue,
+            let Ok(entry) = entry else {
+                continue;
             };
             let path = entry.path();
 
@@ -171,15 +168,9 @@ fn check_flake_updates(flake_path: &Path) -> FlakeStatus {
         Ok(result) => {
             let stdout = String::from_utf8_lossy(&result.stdout);
             let stderr = String::from_utf8_lossy(&result.stderr);
-            let combined = format!("{}{}", stdout, stderr);
+            let combined = format!("{stdout}{stderr}");
 
-            if !result.status.success() {
-                update_output = Some(if combined.trim().is_empty() {
-                    format!("nix command failed with status {}", result.status)
-                } else {
-                    combined.trim().to_string()
-                });
-            } else {
+            if result.status.success() {
                 match fs::read_to_string(&output_lock_path) {
                     Ok(new_content) => {
                         let has_updates = old_content != new_content;
@@ -199,6 +190,13 @@ fn check_flake_updates(flake_path: &Path) -> FlakeStatus {
                         update_output = Some(format!("Failed to read generated lock file: {e}"));
                     }
                 }
+            } else {
+                let status = result.status;
+                update_output = Some(if combined.trim().is_empty() {
+                    format!("nix command failed with status {status}")
+                } else {
+                    combined.trim().to_string()
+                });
             }
         }
         Err(e) => {
@@ -272,9 +270,8 @@ fn run(args: &Args) -> Result<()> {
     let mut repo_statuses = Vec::new();
 
     for repo_path in repositories {
-        let repo = match Repository::open(&repo_path) {
-            Ok(r) => r,
-            Err(_) => continue, // Skip invalid repositories
+        let Ok(repo) = Repository::open(&repo_path) else {
+            continue; // Skip invalid repositories
         };
 
         if repo.is_bare() {
@@ -284,9 +281,8 @@ fn run(args: &Args) -> Result<()> {
         let mut status_opts = StatusOptions::new();
         status_opts.include_ignored(false);
         status_opts.include_untracked(true);
-        let statuses = match repo.statuses(Some(&mut status_opts)) {
-            Ok(s) => s,
-            Err(_) => continue, // Skip repos with status errors
+        let Ok(statuses) = repo.statuses(Some(&mut status_opts)) else {
+            continue; // Skip repos with status errors
         };
 
         if statuses.is_empty() && !args.empty {
@@ -295,7 +291,7 @@ fn run(args: &Args) -> Result<()> {
 
         let files: Vec<String> = statuses
             .iter()
-            .filter_map(|s| s.path().map(|p| p.to_string()))
+            .filter_map(|s| s.path().map(ToString::to_string))
             .collect();
 
         repo_statuses.push(RepoStatus {
@@ -334,7 +330,7 @@ fn display_results(
             .iter()
             .filter(|r| r.uncommitted_count > 0)
             .count();
-        println!("{} repos", count);
+        println!("{count} repos");
         return;
     }
 
@@ -347,11 +343,11 @@ fn display_results(
             .iter()
             .filter(|f| f.updates_available.unwrap_or(false))
             .count();
-        println!("{} repos, {} flakes with updates", repo_count, flake_count);
+        println!("{repo_count} repos, {flake_count} flakes with updates");
         return;
     }
 
-    println!("zinc_oxide v{}", VERSION);
+    println!("zinc_oxide v{VERSION}");
     println!(
         "Searching for git repositories in: {}",
         search_path.display()
@@ -360,7 +356,7 @@ fn display_results(
     if total_repos == 0 {
         println!("No git repositories found.");
     } else {
-        println!("Found {} git repositories:", total_repos);
+        println!("Found {total_repos} git repositories:");
 
         for repo in repo_statuses {
             println!("\n--- Repository: {} ---", repo.path.display());
@@ -371,7 +367,7 @@ fn display_results(
                 println!("Found {} uncommitted files", repo.uncommitted_count);
                 if args.files {
                     for file in &repo.files {
-                        println!("  {}", file);
+                        println!("  {file}");
                     }
                 }
             }
@@ -383,14 +379,12 @@ fn display_results(
         if total_flakes == 0 {
             println!("No Nix flakes found.");
         } else {
-            println!("Found {} Nix flakes:", total_flakes);
+            println!("Found {total_flakes} Nix flakes:");
 
             for flake in flake_statuses {
                 println!("\n--- Flake: {} ---", flake.path.display());
 
-                if !flake.has_lock_file {
-                    println!("No flake.lock file (needs initialization)");
-                } else {
+                if flake.has_lock_file {
                     match flake.updates_available {
                         Some(true) => {
                             println!("Updates available!");
@@ -399,7 +393,7 @@ fn display_results(
                             {
                                 for line in output.lines() {
                                     if line.contains("Updated") || line.contains("updated") {
-                                        println!("  {}", line);
+                                        println!("  {line}");
                                     }
                                 }
                             }
@@ -407,6 +401,8 @@ fn display_results(
                         Some(false) => println!("No updates available"),
                         None => println!("Unable to check for updates (nix command failed)"),
                     }
+                } else {
+                    println!("No flake.lock file (needs initialization)");
                 }
             }
         }
@@ -439,6 +435,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::similar_names)]
     fn test_find_git_repositories_nested_repos() {
         let temp_dir = TempDir::new().unwrap();
 
@@ -546,6 +543,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "nix")]
+    #[allow(clippy::similar_names)]
     fn test_find_flake_projects_nested_flakes() {
         let temp_dir = TempDir::new().unwrap();
 
