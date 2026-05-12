@@ -60,7 +60,20 @@ cargo install --path . --features nix
 zinc_oxide --path ~/code --flakes
 ```
 
-This checks discovered Nix flakes for possible `flake.lock` updates without modifying the existing lock files.
+This recursively discovers directories containing a `flake.nix` and checks each one for available `flake.lock` updates. The check runs `nix flake update` against a throwaway lock path, so your existing `flake.lock` files are never modified. Flakes without a `flake.lock` are reported as needing initialization.
+
+Example:
+
+```bash
+zinc_oxide -F -p ~/code/rust/axon-gateway
+```
+
+```
+Found 1 Nix flakes:
+
+--- Flake: /home/you/code/rust/axon-gateway ---
+Updates available!
+```
 
 ## Options
 

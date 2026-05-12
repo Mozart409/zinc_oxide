@@ -4,11 +4,15 @@ This document provides essential information for AI coding agents working on the
 
 ## Project Overview
 
-**zinc_oxide** is a Rust CLI tool that recursively searches for git repositories and reports their status (uncommitted changes, file counts, etc.).
+**zinc_oxide** is a Rust CLI tool that recursively searches for git repositories and reports their status (uncommitted changes, file counts, etc.). With the optional `nix` feature, it also checks discovered Nix flakes for available `flake.lock` updates without mutating the existing lock files.
 
 - **Language**: Rust (Edition 2024)
 - **Repository**: https://github.com/Mozart409/zinc_oxide
 - **License**: MIT
+
+## Cargo Features
+
+- `nix` (off by default): Enables flake discovery and lock-update checking via the `-F` / `--flakes` flag. Requires the `nix` CLI to be available on `PATH` at runtime. When this feature is disabled, passing `--flakes` returns an error explaining that the feature must be enabled at build time.
 
 ## Build, Test, and Lint Commands
 
@@ -19,6 +23,12 @@ cargo build
 
 # Release build
 cargo build --release
+
+# Build with the optional Nix flake checker enabled
+cargo build --features nix
+
+# Run the flake checker against a path (requires `nix` on PATH)
+cargo run --features nix -- -F -p ~/code
 
 # Build with just
 just                    # Runs bacon in watch mode
@@ -176,3 +186,5 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 - **Hidden directories**: The code intentionally skips hidden directories (starting with `.`) during recursion
 - **Graceful errors**: Permission denied and other IO errors are handled gracefully - directories are skipped rather than causing panics
 - **Bare repositories**: The tool skips bare git repositories
+- **Non-mutating flake checks**: `check_flake_updates` invokes `nix flake update --flake <path>` but redirects the output lock to a temporary path (`temporary_lock_path`), so the project's real `flake.lock` is never written. Flakes lacking a `flake.lock` are reported as needing initialization rather than being silently created.
+- **Feature-gated code**: All flake logic is gated behind `#[cfg(feature = "nix")]`. A stub `collect_flake_statuses` exists under `#[cfg(not(feature = "nix"))]` that errors when `--flakes` is passed without the feature compiled in.
