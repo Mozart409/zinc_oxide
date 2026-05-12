@@ -1,0 +1,24 @@
+# https://lefthook.dev/configuration/
+#
+# Run `lefthook install` to install hooks after cloning.
+pre-commit:
+  parallel: true
+  jobs:
+    - name: keep-sorted
+      run: keep-sorted --mode=lint {all_files}
+      glob: "*.nix"
+    - name: dprint fmt
+      run: dprint fmt {staged_files}
+    - name: cargo clippy pedantic
+      run: cargo clippy --all-targets -- -D warnings -W clippy::pedantic
+    - name: cargo test
+      run: cargo test
+pre-push:
+  parallel: true
+  jobs:
+    - name: cargo deny
+      run: cargo deny check
+    - name: release build
+      run: cargo build --release --features nix
+    - name: dprint check
+      run: dprint check

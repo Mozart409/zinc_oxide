@@ -1,5 +1,5 @@
 {
-  description = "Development environment for a Node.js project";
+  description = "Development environment for zinc_oxide (Rust CLI tool)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -58,6 +58,9 @@
           echo "Development environment is ready!"
 
           cargo -V
+
+          cog install-hook
+          lefthook install
         '';
       };
     });
