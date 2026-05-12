@@ -17,6 +17,7 @@ This document provides essential information for AI coding agents working on the
 ## Build, Test, and Lint Commands
 
 ### Building
+
 ```bash
 # Debug build
 cargo build
@@ -35,6 +36,7 @@ just                    # Runs bacon in watch mode
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 cargo test
@@ -53,6 +55,7 @@ bacon test -- test_name_here
 ```
 
 ### Linting and Formatting
+
 ```bash
 # Run clippy
 cargo clippy
@@ -70,6 +73,7 @@ just deny
 ```
 
 ### Development Tools
+
 ```bash
 # Watch mode for development (recommended)
 bacon                   # Default: runs check
@@ -84,35 +88,41 @@ nix develop             # Enter development environment
 ## Code Style Guidelines
 
 ### Import Ordering
+
 - Standard library imports first (e.g., `use std::{env, fs, path::PathBuf};`)
 - External crate imports second (e.g., `use git2::{Repository, StatusOptions};`)
 - Internal module imports last (if any)
 
 ### Naming Conventions
+
 - **Functions/Variables**: `snake_case` (e.g., `find_git_repositories`, `repo_statuses`)
 - **Structs/Enums**: `PascalCase` (e.g., `RepoStatus`, `Args`)
 - **Constants**: `SCREAMING_SNAKE_CASE` (e.g., `VERSION`)
 - **Type aliases**: Use descriptive names that explain the type's purpose
 
 ### Error Handling
+
 - Use `color_eyre::eyre::Result<T>` for fallible functions
 - Use the `?` operator to propagate errors
 - Handle errors gracefully - skip directories/files that can't be read rather than panicking
 - For CLI errors, print to stderr: `eprintln!("Error: {e}")`
 
 ### Types
+
 - Prefer explicit types over inference for public APIs
 - Use `PathBuf` for path handling
 - Use `&str` for string slices, `String` for owned strings
 - Leverage Rust's type system with `Option` and `Result`
 
 ### Code Organization
+
 - Main logic in `src/main.rs` (single-file binary)
 - CLI arguments defined with `gumdrop::Options` derive macro
 - Unit tests in `#[cfg(test)]` module within `main.rs`
 - Integration tests in `tests/` directory
 
 ### Comments and Documentation
+
 - Document public functions with `///` doc comments
 - Use inline comments (`//`) sparingly, only for complex logic
 - Keep comments up-to-date with code changes
@@ -140,17 +150,20 @@ nix develop             # Enter development environment
 ## Testing Strategy
 
 ### Unit Tests (in `src/main.rs`)
+
 - Test individual functions in isolation
 - Use `tempfile::TempDir` for temporary test directories
 - Test edge cases like empty directories, nested repos, hidden dirs
 
 ### Integration Tests (in `tests/`)
+
 - Test CLI behavior end-to-end using `assert_cmd`
 - Use `cargo_bin_cmd!` macro to run the compiled binary
 - Test command-line arguments and flags
 - Create real git repositories using `git2` library for realistic tests
 
 ### Test Naming
+
 - Prefix with `test_` followed by descriptive name
 - Use `snake_case` for test names
 - Include scenario in name: `test_<function>_<scenario>`
@@ -158,11 +171,13 @@ nix develop             # Enter development environment
 ## Dependencies
 
 ### Production
+
 - `color-eyre`: Error handling and reporting
 - `git2`: Git operations (with `vendored-libgit2` feature)
 - `gumdrop`: CLI argument parsing
 
 ### Development
+
 - `assert_cmd`: CLI testing
 - `predicates`: Assertion helpers for tests
 - `tempfile`: Temporary directories for tests
@@ -170,6 +185,7 @@ nix develop             # Enter development environment
 ## CI/CD
 
 GitHub Actions workflow (`.github/workflows/rust.yml`):
+
 1. Builds release binary
 2. Runs all tests
 3. Creates deb and rpm packages
@@ -178,6 +194,8 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 
 - Follow conventional commits (enforced by cocogitto)
 - Use `lefthook` for git hooks management
+  - `pre-commit`: runs `keep-sorted`, `dprint check`, `cargo clippy --all-targets -- -D warnings -W clippy::pedantic`, and `cargo test` in parallel
+  - `pre-push`: runs `cargo deny check` and `cargo build --release --features nix` in parallel
 - Main branch: `main`
 
 ## Important Notes
