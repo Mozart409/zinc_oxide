@@ -1,7 +1,7 @@
 {
   "name": "website",
   "type": "module",
-  "packageManager": "pnpm@11.5.2",
+  "packageManager": "pnpm@11.5.2+sha512.71c631e382066efc25625d5cf029075de07b61b37f6e27350fbd84b1bda5864c8c1967adc280776b45c30a715c0359a3be08fef42d5bb09e2b99029979692916",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
@@ -12,7 +12,7 @@
     "hono": "^4.12.18"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.15.2",
+    "@cloudflare/vitest-pool-workers": "^0.16.15",
     "@cloudflare/workers-types": "^4.20260505.1",
     "vitest": "^4.1.5",
     "wrangler": "^4.87.0"
