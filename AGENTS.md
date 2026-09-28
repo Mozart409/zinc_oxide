@@ -229,3 +229,9 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 - **Bare repositories**: The tool skips bare git repositories
 - **Non-mutating flake checks**: `check_flake_updates` invokes `nix flake update --flake <path>` but redirects the output lock to a temporary path (`temporary_lock_path`), so the project's real `flake.lock` is never written. Flakes lacking a `flake.lock` are reported as needing initialization rather than being silently created.
 - **Feature-gated code**: All flake logic is gated behind `#[cfg(feature = "nix")]`. A stub `collect_flake_statuses` exists under `#[cfg(not(feature = "nix"))]` that errors when `--flakes` is passed without the feature compiled in.
+
+## Common Pitfalls
+
+- **Nightly toolchain everywhere**: The dev shell (`flake.nix`, fenix `complete`) and CI (`dtolnay/rust-toolchain@nightly`) both use nightly Rust. Do not switch either one to stable. Clippy lint behaviour differs between versions, so a mismatch makes `just lint` pass locally and fail in CI. `just lint` refuses to run on a non-nightly `rustc`.
+- **`unwrap` in test helpers**: `clippy.toml` allows `unwrap`/`expect`/`panic` only in test contexts, and some clippy versions do not count plain helper functions in `tests/*.rs` (no `#[test]`) as test code. Make helpers return `Result<(), Box<dyn Error>>`, use `?` inside them, and `.unwrap()` at the `#[test]` call site.
+- **Toolchain drift**: CI installs the latest nightly, while the dev shell is pinned by `flake.lock`. If CI reports lints you can't reproduce, run `nix flake update` (or `just update`) to bring the local nightly up to date.
