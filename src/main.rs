@@ -291,7 +291,7 @@ fn run(args: &Args) -> Result<()> {
 
         let files: Vec<String> = statuses
             .iter()
-            .filter_map(|s| s.path().map(ToString::to_string))
+            .filter_map(|s| s.path().ok().map(ToString::to_string))
             .collect();
 
         repo_statuses.push(RepoStatus {
