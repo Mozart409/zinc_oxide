@@ -57,9 +57,8 @@ bacon test -- test_name_here
 ### Linting and Formatting
 
 ```bash
-# Run clippy
-cargo clippy
-cargo clippy --all-targets
+# Run all lints (clippy with all features + dprint check); warnings are errors
+just lint
 
 # Format code with dprint
 dprint fmt
@@ -120,6 +119,12 @@ nix develop             # Enter development environment
 - CLI arguments defined with `clap::Parser` derive macro
 - Unit tests in `#[cfg(test)]` module within `main.rs`
 - Integration tests in `tests/` directory
+
+### Lints
+
+- Clippy lints are configured in `Cargo.toml` under `[lints]`: `pedantic` and `nursery` are denied, as are panicking constructs (`unwrap_used`, `expect_used`, `indexing_slicing`, `panic`, `as_conversions`, etc.). All warnings are errors.
+- `clippy.toml` allows `unwrap`/`expect`/indexing/`panic` inside tests only.
+- Always lint via `just lint`; hooks and `release.sh` call it.
 
 ### Comments and Documentation
 
@@ -211,9 +216,9 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 
 - Follow conventional commits (enforced by cocogitto)
 - Use `lefthook` for git hooks management
-  - `pre-commit`: runs `keep-sorted` (auto-fixes and restages `*.nix`), `dprint fmt`, `cargo clippy --all-targets -- -D warnings -W clippy::pedantic`, and `cargo test` in parallel
+  - `pre-commit`: runs `keep-sorted` (auto-fixes and restages `*.nix`), `dprint fmt` followed by `just lint`, and `cargo test` in parallel
   - `commit-msg`: validates the commit message with `cog verify`
-  - `pre-push`: runs `keep-sorted --mode=lint`, `cargo deny check`, `cargo build --release --features nix`, and `dprint check` in parallel
+  - `pre-push`: runs `keep-sorted --mode=lint`, `cargo deny check`, `cargo build --release --features nix`, and `just lint` in parallel
 - Main branch: `main`
 
 ## Important Notes

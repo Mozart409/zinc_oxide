@@ -12,6 +12,10 @@ clear:
 test: clear
     cargo test
 
+lint:
+    cargo clippy --all-targets --all-features -- -D warnings
+    dprint check
+
 deb: clear
     cargo deb
 

@@ -8,12 +8,16 @@ pre-commit:
       run: keep-sorted {staged_files}
       glob: "*.nix"
       stage_fixed: true
-    - name: dprint fmt
-      glob: "*.{ts,tsx,js,jsx,cjs,mjs,json,jsonc,md,toml,yml,yaml,html,htm,css,scss,less,vue,svelte,astro}"
-      run: dprint fmt --allow-no-files {staged_files}
-      stage_fixed: true
-    - name: cargo clippy pedantic
-      run: cargo clippy --all-targets -- -D warnings -W clippy::pedantic
+    - name: format then lint
+      group:
+        piped: true
+        jobs:
+          - name: dprint fmt
+            glob: "*.{ts,tsx,js,jsx,cjs,mjs,json,jsonc,md,toml,yml,yaml,html,htm,css,scss,less,vue,svelte,astro}"
+            run: dprint fmt --allow-no-files {staged_files}
+            stage_fixed: true
+          - name: just lint
+            run: just lint
     - name: cargo test
       run: cargo test
 commit-msg:
@@ -30,5 +34,5 @@ pre-push:
       run: cargo deny check
     - name: release build
       run: cargo build --release --features nix
-    - name: dprint check
-      run: dprint check
+    - name: just lint
+      run: just lint

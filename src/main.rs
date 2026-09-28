@@ -13,7 +13,10 @@ use std::{env, fs, path::Path, path::PathBuf};
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Parser)]
-#[command(name = "zinc_oxide", about = "Find git repositories with uncommitted changes")]
+#[command(
+    name = "zinc_oxide",
+    about = "Find git repositories with uncommitted changes"
+)]
 #[allow(clippy::struct_excessive_bools)] // CLI flags
 struct Args {
     /// Print version information
@@ -42,7 +45,9 @@ struct Args {
 }
 
 fn main() {
-    color_eyre::install().unwrap();
+    if let Err(e) = color_eyre::install() {
+        eprintln!("Error: {e}");
+    }
 
     let args = Args::parse();
 
@@ -76,7 +81,11 @@ fn find_git_repositories(dir: &Path) -> Result<Vec<PathBuf>> {
             };
             let path = entry.path();
 
-            if path.is_dir() && !path.file_name().unwrap().to_str().unwrap().starts_with('.') {
+            if path.is_dir()
+                && path
+                    .file_name()
+                    .is_some_and(|name| !name.to_string_lossy().starts_with('.'))
+            {
                 repos.extend(find_git_repositories(&path)?);
             }
         }
@@ -104,7 +113,11 @@ fn find_flake_projects(dir: &Path) -> Result<Vec<PathBuf>> {
             };
             let path = entry.path();
 
-            if path.is_dir() && !path.file_name().unwrap().to_str().unwrap().starts_with('.') {
+            if path.is_dir()
+                && path
+                    .file_name()
+                    .is_some_and(|name| !name.to_string_lossy().starts_with('.'))
+            {
                 flakes.extend(find_flake_projects(&path)?);
             }
         }
@@ -113,7 +126,7 @@ fn find_flake_projects(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(flakes)
 }
 
-fn flakes_enabled(args: &Args) -> bool {
+const fn flakes_enabled(args: &Args) -> bool {
     args.flakes
 }
 
@@ -223,8 +236,7 @@ fn temporary_lock_path(flake_path: &Path) -> PathBuf {
     let path_hash = hasher.finish();
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or_default();
+        .map_or(0, |duration| duration.as_nanos());
 
     env::temp_dir().join(format!(
         "zinc_oxide-flake-lock-{}-{path_hash:x}-{timestamp}.lock",

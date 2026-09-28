@@ -45,8 +45,8 @@ cargo test
 echo "Running cargo test --features nix..."
 cargo test --features nix
 
-echo "Running cargo clippy --all-features..."
-cargo clippy --all-targets --all-features -- -D warnings
+echo "Running just lint..."
+just lint
 
 echo "Running cargo deny check..."
 cargo deny check
