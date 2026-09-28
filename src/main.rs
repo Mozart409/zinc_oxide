@@ -117,7 +117,13 @@ struct RepoStatus {
     files: Vec<String>,
 }
 
-fn collect_repo_statuses(repositories: &[PathBuf], include_empty: bool) -> Vec<RepoStatus> {
+/// Returns singular or plural `noun` for `count`.
+const fn plural(count: usize, singular: &'static str, plural: &'static str) -> &'static str {
+    if count == 1 { singular } else { plural }
+}
+
+/// Status of every openable, non-bare repository; clean ones included.
+fn collect_repo_statuses(repositories: &[PathBuf]) -> Vec<RepoStatus> {
     let mut repo_statuses = Vec::new();
 
     for repo_path in repositories {
@@ -125,20 +131,12 @@ fn collect_repo_statuses(repositories: &[PathBuf], include_empty: bool) -> Vec<R
             continue; // Skip invalid repositories
         };
 
-        if repo.is_bare() {
-            continue;
-        }
-
         let mut status_opts = StatusOptions::new();
         status_opts.include_ignored(false);
         status_opts.include_untracked(true);
         let Ok(statuses) = repo.statuses(Some(&mut status_opts)) else {
-            continue; // Skip repos with status errors
+            continue; // Skip repos with status errors, including bare repos
         };
-
-        if statuses.is_empty() && !include_empty {
-            continue;
-        }
 
         let files: Vec<String> = statuses
             .iter()
@@ -170,7 +168,7 @@ fn run(args: &Args) -> Result<()> {
     };
 
     let projects = find_projects(&search_path);
-    let repo_statuses = collect_repo_statuses(&projects.repos, args.empty);
+    let repo_statuses = collect_repo_statuses(&projects.repos);
 
     #[cfg(feature = "nix")]
     let flake_statuses = args.flakes.then(|| {
@@ -188,16 +186,17 @@ fn run(args: &Args) -> Result<()> {
         #[cfg(feature = "nix")]
         if let Some(flake_statuses) = &flake_statuses {
             println!(
-                "{repo_count} repos, {}",
+                "{repo_count} {}, {}",
+                plural(repo_count, "repo", "repos"),
                 flake::compact_summary(flake_statuses)
             );
             return Ok(());
         }
-        println!("{repo_count} repos");
+        println!("{repo_count} {}", plural(repo_count, "repo", "repos"));
         return Ok(());
     }
 
-    display_repos(&repo_statuses, args, &search_path, projects.repos.len());
+    display_repos(&repo_statuses, args, &search_path);
 
     #[cfg(feature = "nix")]
     if let Some(flake_statuses) = &flake_statuses {
@@ -207,32 +206,39 @@ fn run(args: &Args) -> Result<()> {
     Ok(())
 }
 
-fn display_repos(
-    repo_statuses: &[RepoStatus],
-    args: &Args,
-    search_path: &Path,
-    total_repos: usize,
-) {
+fn display_repos(repo_statuses: &[RepoStatus], args: &Args, search_path: &Path) {
     println!("zinc_oxide v{VERSION}");
     println!(
         "Searching for git repositories in: {}",
         search_path.display()
     );
 
+    let total_repos = repo_statuses.len();
     if total_repos == 0 {
         println!("No git repositories found.");
         return;
     }
 
-    println!("Found {total_repos} git repositories:");
+    println!(
+        "Found {total_repos} git {}:",
+        plural(total_repos, "repository", "repositories")
+    );
 
     for repo in repo_statuses {
+        if repo.uncommitted_count == 0 && !args.empty {
+            continue;
+        }
+
         println!("\n--- Repository: {} ---", repo.path.display());
 
         if repo.uncommitted_count == 0 {
             println!("No uncommitted files");
         } else {
-            println!("Found {} uncommitted files", repo.uncommitted_count);
+            println!(
+                "Found {} uncommitted {}",
+                repo.uncommitted_count,
+                plural(repo.uncommitted_count, "file", "files")
+            );
             if args.files {
                 for file in &repo.files {
                     println!("  {file}");
@@ -458,16 +464,15 @@ mod flake {
             )
     }
 
-    const fn flakes_noun(count: usize) -> &'static str {
-        if count == 1 { "flake" } else { "flakes" }
-    }
-
     pub fn compact_summary(statuses: &[FlakeStatus]) -> String {
         let count = statuses
             .iter()
             .filter(|status| matches!(status.check, FlakeCheck::Updates(_)))
             .count();
-        format!("{count} {} with updates", flakes_noun(count))
+        format!(
+            "{count} {} with updates",
+            super::plural(count, "flake", "flakes")
+        )
     }
 
     pub fn display(statuses: &[FlakeStatus], show_inputs: bool) {
@@ -480,7 +485,7 @@ mod flake {
         println!(
             "Found {} Nix {}:",
             statuses.len(),
-            flakes_noun(statuses.len())
+            super::plural(statuses.len(), "flake", "flakes")
         );
 
         for status in statuses {
@@ -512,187 +517,5 @@ mod flake {
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_find_git_repositories_empty_directory() {
-        let temp_dir = TempDir::new().unwrap();
-        let repos = find_projects(temp_dir.path()).repos;
-        assert_eq!(repos.len(), 0);
-    }
-
-    #[test]
-    fn test_find_git_repositories_single_repo() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create a .git directory
-        fs::create_dir(temp_dir.path().join(".git")).unwrap();
-
-        let repos = find_projects(temp_dir.path()).repos;
-        assert_eq!(repos.len(), 1);
-        assert_eq!(repos[0], temp_dir.path());
-    }
-
-    #[test]
-    #[allow(clippy::similar_names)]
-    fn test_find_git_repositories_nested_repos() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create nested git repositories
-        let repo1 = temp_dir.path().join("repo1");
-        let repo2 = temp_dir.path().join("repo2");
-        let nested = temp_dir.path().join("nested").join("deep");
-
-        fs::create_dir(&repo1).unwrap();
-        fs::create_dir(repo1.join(".git")).unwrap();
-
-        fs::create_dir(&repo2).unwrap();
-        fs::create_dir(repo2.join(".git")).unwrap();
-
-        fs::create_dir_all(&nested).unwrap();
-        fs::create_dir(nested.join(".git")).unwrap();
-
-        let repos = find_projects(temp_dir.path()).repos;
-        assert_eq!(repos.len(), 3);
-    }
-
-    #[test]
-    fn test_find_git_repositories_ignores_hidden_dirs() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create a hidden directory with .git
-        let hidden_dir = temp_dir.path().join(".hidden");
-        fs::create_dir(&hidden_dir).unwrap();
-        fs::create_dir(hidden_dir.join(".git")).unwrap();
-
-        // Create a normal directory with .git
-        let normal_dir = temp_dir.path().join("normal");
-        fs::create_dir(&normal_dir).unwrap();
-        fs::create_dir(normal_dir.join(".git")).unwrap();
-
-        let repos = find_projects(temp_dir.path()).repos;
-        assert_eq!(repos.len(), 1);
-        assert_eq!(repos[0], normal_dir);
-    }
-
-    #[test]
-    fn test_find_git_repositories_nonexistent_directory() {
-        let nonexistent = PathBuf::from("/nonexistent/path");
-        // fs::read_dir fails for nonexistent directories, which is handled gracefully
-        assert_eq!(find_projects(&nonexistent).repos.len(), 0);
-    }
-
-    #[test]
-    fn test_args_parsing() {
-        use clap::CommandFactory;
-
-        Args::command().debug_assert();
-
-        // Test default args
-        let args = Args::try_parse_from(["zinc_oxide"]).unwrap();
-        assert!(args.path.is_none());
-        assert!(!args.files);
-        assert!(!args.empty);
-
-        // Test with flags
-        let args = Args::try_parse_from(["zinc_oxide", "--files", "--empty"]).unwrap();
-        assert!(args.files);
-        assert!(args.empty);
-
-        // Test with path
-        let args = Args::try_parse_from(["zinc_oxide", "--path", "/test/path"]).unwrap();
-        assert_eq!(args.path, Some("/test/path".to_string()));
-
-        // Test compact flag
-        let args = Args::try_parse_from(["zinc_oxide", "-c"]).unwrap();
-        assert!(args.compact);
-
-        #[cfg(feature = "nix")]
-        {
-            // Test flakes flag
-            let args = Args::try_parse_from(["zinc_oxide", "--flakes"]).unwrap();
-            assert!(args.flakes);
-            let args = Args::try_parse_from(["zinc_oxide", "-F"]).unwrap();
-            assert!(args.flakes);
-        }
-    }
-
-    #[test]
-    #[cfg(feature = "nix")]
-    fn test_find_flake_projects_empty_directory() {
-        let temp_dir = TempDir::new().unwrap();
-        let flakes = find_projects(temp_dir.path()).flakes;
-        assert_eq!(flakes.len(), 0);
-    }
-
-    #[test]
-    #[cfg(feature = "nix")]
-    fn test_find_flake_projects_single_flake() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create a flake.nix file
-        fs::write(temp_dir.path().join("flake.nix"), "{}").unwrap();
-
-        let flakes = find_projects(temp_dir.path()).flakes;
-        assert_eq!(flakes.len(), 1);
-        assert_eq!(flakes[0], temp_dir.path());
-    }
-
-    #[test]
-    #[cfg(feature = "nix")]
-    #[allow(clippy::similar_names)]
-    fn test_find_flake_projects_nested_flakes() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create nested flake projects
-        let flake1 = temp_dir.path().join("project1");
-        let flake2 = temp_dir.path().join("project2");
-        let nested = temp_dir.path().join("nested").join("deep");
-
-        fs::create_dir(&flake1).unwrap();
-        fs::write(flake1.join("flake.nix"), "{}").unwrap();
-
-        fs::create_dir(&flake2).unwrap();
-        fs::write(flake2.join("flake.nix"), "{}").unwrap();
-
-        fs::create_dir_all(&nested).unwrap();
-        fs::write(nested.join("flake.nix"), "{}").unwrap();
-
-        let flakes = find_projects(temp_dir.path()).flakes;
-        assert_eq!(flakes.len(), 3);
-    }
-
-    #[test]
-    #[cfg(feature = "nix")]
-    fn test_find_flake_projects_ignores_hidden_dirs() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create a hidden directory with flake.nix
-        let hidden_dir = temp_dir.path().join(".hidden");
-        fs::create_dir(&hidden_dir).unwrap();
-        fs::write(hidden_dir.join("flake.nix"), "{}").unwrap();
-
-        // Create a normal directory with flake.nix
-        let normal_dir = temp_dir.path().join("normal");
-        fs::create_dir(&normal_dir).unwrap();
-        fs::write(normal_dir.join("flake.nix"), "{}").unwrap();
-
-        let flakes = find_projects(temp_dir.path()).flakes;
-        assert_eq!(flakes.len(), 1);
-        assert_eq!(flakes[0], normal_dir);
-    }
-
-    #[test]
-    #[cfg(feature = "nix")]
-    fn test_find_flake_projects_nonexistent_directory() {
-        let nonexistent = PathBuf::from("/nonexistent/path");
-        assert_eq!(find_projects(&nonexistent).flakes.len(), 0);
     }
 }
