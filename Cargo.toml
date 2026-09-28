@@ -28,9 +28,9 @@ assets = [
 ]
 
 [dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
 color-eyre = { version = "0.6.5", default-features = false }
 git2 = { version = "0.21.0", default-features = false, features = ["vendored-libgit2"] }
-gumdrop = "0.8.1"
 
 [features]
 default = []

@@ -117,7 +117,7 @@ nix develop             # Enter development environment
 ### Code Organization
 
 - Main logic in `src/main.rs` (single-file binary)
-- CLI arguments defined with `gumdrop::Options` derive macro
+- CLI arguments defined with `clap::Parser` derive macro
 - Unit tests in `#[cfg(test)]` module within `main.rs`
 - Integration tests in `tests/` directory
 
@@ -191,7 +191,7 @@ nix develop             # Enter development environment
 
 - `color-eyre`: Error handling and reporting
 - `git2`: Git operations (with `vendored-libgit2` feature)
-- `gumdrop`: CLI argument parsing
+- `clap` (derive): CLI argument parsing
 
 ### Development
 
