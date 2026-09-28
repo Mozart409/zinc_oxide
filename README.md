@@ -10,7 +10,7 @@ Zinc Oxide scans directories to find git repositories and displays their current
 
 ### Nix flake
 
-The flake's default package is built with the `nix` feature, so the flake lock checker (`-F`) is included.
+The flake's default package is built with all features, including `nix`, so the flake lock checker (`-F`) is included. It uses the `nix` on your `PATH` and falls back to a bundled one.
 
 Try it without installing:
 

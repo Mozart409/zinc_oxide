@@ -14,9 +14,17 @@ test: clear
 
 lint:
     @if ! rustc -V | grep -q nightly; then echo "error: just lint must run on the nightly toolchain (matches CI); enter the dev shell with 'nix develop'" >&2; exit 1; fi
-    cargo clippy --all-targets --all-features -- -D warnings
-    cargo clippy --all-targets -- -D warnings
+    cargo hack --feature-powerset clippy --all-targets -- -D warnings
     dprint check
+
+# Build and test every combination of Cargo features, so none of them rots.
+features:
+    cargo hack --feature-powerset build --release
+    cargo hack --feature-powerset test
+
+# Build the flake package users install (`nix build`/`nix profile install`).
+nix-build:
+    nix build --no-link -L .#checks.$(nix eval --impure --raw --expr builtins.currentSystem).package
 
 deb: clear
     cargo deb

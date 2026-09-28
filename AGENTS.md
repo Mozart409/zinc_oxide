@@ -14,6 +14,8 @@ This document provides essential information for AI coding agents working on the
 
 - `nix` (off by default): Enables flake discovery and lock-update checking via the `-F` / `--flakes` flag. Requires the `nix` CLI to be available on `PATH` at runtime. When this feature is disabled, passing `--flakes` returns an error explaining that the feature must be enabled at build time.
 
+Every feature combination must build, lint and pass tests: `just lint` and `just features` use `cargo hack --feature-powerset`, so a new feature is covered automatically once it is added to `[features]` in `Cargo.toml`. The flake package enables all features (derived from `Cargo.toml`) and wraps the binary with a fallback `nix` on `PATH`.
+
 ## Build, Test, and Lint Commands
 
 ### Building
@@ -30,6 +32,12 @@ cargo build --features nix
 
 # Run the flake checker against a path (requires `nix` on PATH)
 cargo run --features nix -- -F -p ~/code
+
+# Build and test every feature combination (cargo hack --feature-powerset)
+just features
+
+# Build the flake package users install, in the Nix sandbox
+just nix-build
 
 # Build with just
 just                    # Pick a recipe interactively (just --choose)
@@ -60,7 +68,7 @@ watchexec -e rs,toml -- cargo test test_name_here
 ### Linting and Formatting
 
 ```bash
-# Run all lints (clippy with and without features + dprint check); warnings are errors
+# Run all lints (clippy for every feature combination + dprint check); warnings are errors
 just lint
 
 # Format code with dprint
@@ -207,7 +215,7 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 1. Builds release binary
 2. Runs all tests
 3. Creates deb and rpm packages
-4. Installs Nix and builds/tests with `--features nix` (separate `nix-feature` job)
+4. Installs Nix, runs `just features` (every feature combination) and `just nix-build` (the flake package) (separate `nix-feature` job)
 
 ## Git Workflow
 
@@ -215,9 +223,9 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 - Use `lefthook` for git hooks management
   - `pre-commit`: runs `keep-sorted` (auto-fixes and restages `*.nix`), `dprint fmt` followed by `just lint`, and `cargo test` in parallel
   - `commit-msg`: validates the commit message with `cog verify`
-  - `pre-push`: runs `keep-sorted --mode=lint`, `cargo deny check`, `cargo build --release --features nix`, `just lint`, and the website tests (`nr test` in `website/`) in parallel
+  - `pre-push`: runs `keep-sorted --mode=lint`, `cargo deny check`, `just features`, `just nix-build`, `just lint`, and the website tests (`nr test` in `website/`) in parallel
 - Main branch: `main`
-- Releases: run `just release` (`cog bump --auto`) on a clean `main`. Pre-bump hooks in `cog.toml` run tests (with and without `nix`), `just lint`, `cargo deny check`, then `cargo set-version` updates `Cargo.toml`/`Cargo.lock`; cog writes `CHANGELOG.md`, commits `chore(version): vX.Y.Z`, tags `vX.Y.Z`, and the post-bump hook pushes commit and tag atomically (the tag triggers `.github/workflows/release.yml`)
+- Releases: run `just release` (`cog bump --auto`) on a clean `main`. Pre-bump hooks in `cog.toml` run `just features`, `just lint`, `cargo deny check`, then `cargo set-version` updates `Cargo.toml`/`Cargo.lock`; cog writes `CHANGELOG.md`, commits `chore(version): vX.Y.Z`, tags `vX.Y.Z`, and the post-bump hook pushes commit and tag atomically (the tag triggers `.github/workflows/release.yml`)
 
 ## Important Notes
 

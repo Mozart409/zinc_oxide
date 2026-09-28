@@ -33,8 +33,10 @@ pre-push:
       glob: "*.nix"
     - name: cargo deny
       run: cargo deny check
-    - name: release build
-      run: cargo build --release --features nix
+    - name: feature powerset
+      run: just features
+    - name: flake package
+      run: just nix-build
     - name: just lint
       run: just lint
     - name: website test

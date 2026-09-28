@@ -21,6 +21,7 @@
       ];
 
       perSystem = {
+        config,
         pkgs,
         system,
         inputs',
@@ -50,16 +51,26 @@
               ];
             };
             cargoLock.lockFile = ./Cargo.lock;
-            buildFeatures = ["nix"];
+            # Ship every Cargo feature, so new features reach flake users
+            # without touching this file.
+            buildFeatures = builtins.attrNames (removeAttrs (cargoToml.features or {}) ["default"]);
+            nativeBuildInputs = [pkgs.makeWrapper];
             # The flake tests call `nix` against real flakes, which the build
             # sandbox can't do; run only the git report tests.
             cargoTestFlags = ["--test" "cli"];
+            # `-F` shells out to `nix`. Prefer the user's own (it talks to their
+            # daemon), but fall back to a bundled one so the checker always works.
+            postInstall = ''
+              wrapProgram $out/bin/zinc_oxide --suffix PATH : ${pkgs.lib.makeBinPath [pkgs.nix]}
+            '';
             meta = {
               inherit (cargoToml.package) description homepage;
               license = pkgs.lib.licenses.mit;
               mainProgram = "zinc_oxide";
             };
           };
+
+        checks.package = config.packages.default;
 
         # to use other shells, run:
         # nix develop . --command fish
@@ -77,6 +88,7 @@
             cargo-deb
             cargo-deny
             cargo-edit
+            cargo-hack
             cargo-workspaces
             claude-code
             cocogitto

@@ -35,7 +35,6 @@ serde_json = { version = "1.0", optional = true }
 tempfile = { version = "3.27", optional = true }
 
 [features]
-default = []
 nix = ["dep:serde_json", "dep:tempfile"]
 
 [dev-dependencies]
