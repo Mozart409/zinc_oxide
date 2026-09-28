@@ -1,15 +1,25 @@
+tag_prefix = "v"
 from_latest_tag = false
-ignore_merge_commits = false
+ignore_merge_commits = true
 ignore_fixup_commits = true
 disable_changelog = false
 disable_bump_commit = false
 generate_mono_repository_global_tag = true
 generate_mono_repository_package_tags = true
-branch_whitelist = []
+branch_whitelist = ["main"]
 skip_ci = "[skip ci]"
 skip_untracked = false
-pre_bump_hooks = []
-post_bump_hooks = []
+pre_bump_hooks = [
+  "cargo test",
+  "cargo test --features nix",
+  "just lint",
+  "cargo deny check",
+  "cargo set-version {{version}}",
+]
+# Push commit + tag atomically so CI never sees the release commit without its tag
+post_bump_hooks = [
+  "git push --atomic origin main {{version_tag}}",
+]
 pre_package_bump_hooks = []
 post_package_bump_hooks = []
 
@@ -22,5 +32,3 @@ path = "CHANGELOG.md"
 authors = []
 
 [bump_profiles]
-
-[packages]

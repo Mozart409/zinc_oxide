@@ -1,6 +1,6 @@
+use clap::Parser;
 use color_eyre::eyre::Result;
 use git2::{Repository, StatusOptions};
-use gumdrop::Options;
 #[cfg(feature = "nix")]
 use std::{
     collections::hash_map::DefaultHasher,
@@ -12,37 +12,44 @@ use std::{env, fs, path::Path, path::PathBuf};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Debug, Options)]
+#[derive(Debug, Parser)]
+#[command(
+    name = "zinc_oxide",
+    about = "Find git repositories with uncommitted changes"
+)]
 #[allow(clippy::struct_excessive_bools)] // CLI flags
 struct Args {
-    #[options(help = "Print help message")]
-    help: bool,
-
-    #[options(help = "Print version information", short = 'v')]
+    /// Print version information
+    #[arg(short, long)]
     version: bool,
 
-    #[options(help = "Check this absolute path", meta = "p")]
+    /// Check this absolute path
+    #[arg(short, long, value_name = "PATH")]
     path: Option<String>,
 
-    #[options(help = "Show individual files", short = 'f')]
+    /// Show individual files
+    #[arg(short, long)]
     files: bool,
 
-    #[options(help = "Show empty repositories", short = 'e')]
+    /// Show empty repositories
+    #[arg(short, long)]
     empty: bool,
 
-    #[options(
-        help = "Compact output - only show count of repos with uncommitted files",
-        short = 'c'
-    )]
+    /// Compact output - only show count of repos with uncommitted files
+    #[arg(short, long)]
     compact: bool,
 
-    #[options(help = "Check Nix flakes for lock updates", short = 'F')]
+    /// Check Nix flakes for lock updates
+    #[arg(short = 'F', long)]
     flakes: bool,
 }
-fn main() {
-    color_eyre::install().unwrap();
 
-    let args = Args::parse_args_default_or_exit();
+fn main() {
+    if let Err(e) = color_eyre::install() {
+        eprintln!("Error: {e}");
+    }
+
+    let args = Args::parse();
 
     if args.version {
         println!("zinc_oxide {VERSION}");
@@ -74,7 +81,11 @@ fn find_git_repositories(dir: &Path) -> Result<Vec<PathBuf>> {
             };
             let path = entry.path();
 
-            if path.is_dir() && !path.file_name().unwrap().to_str().unwrap().starts_with('.') {
+            if path.is_dir()
+                && path
+                    .file_name()
+                    .is_some_and(|name| !name.to_string_lossy().starts_with('.'))
+            {
                 repos.extend(find_git_repositories(&path)?);
             }
         }
@@ -102,7 +113,11 @@ fn find_flake_projects(dir: &Path) -> Result<Vec<PathBuf>> {
             };
             let path = entry.path();
 
-            if path.is_dir() && !path.file_name().unwrap().to_str().unwrap().starts_with('.') {
+            if path.is_dir()
+                && path
+                    .file_name()
+                    .is_some_and(|name| !name.to_string_lossy().starts_with('.'))
+            {
                 flakes.extend(find_flake_projects(&path)?);
             }
         }
@@ -111,7 +126,7 @@ fn find_flake_projects(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(flakes)
 }
 
-fn flakes_enabled(args: &Args) -> bool {
+const fn flakes_enabled(args: &Args) -> bool {
     args.flakes
 }
 
@@ -221,8 +236,7 @@ fn temporary_lock_path(flake_path: &Path) -> PathBuf {
     let path_hash = hasher.finish();
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or_default();
+        .map_or(0, |duration| duration.as_nanos());
 
     env::temp_dir().join(format!(
         "zinc_oxide-flake-lock-{}-{path_hash:x}-{timestamp}.lock",
@@ -291,7 +305,7 @@ fn run(args: &Args) -> Result<()> {
 
         let files: Vec<String> = statuses
             .iter()
-            .filter_map(|s| s.path().map(ToString::to_string))
+            .filter_map(|s| s.path().ok().map(ToString::to_string))
             .collect();
 
         repo_statuses.push(RepoStatus {
@@ -488,34 +502,35 @@ mod tests {
 
     #[test]
     fn test_args_parsing() {
-        use gumdrop::Options;
+        use clap::CommandFactory;
 
-        // Test default args - skip the first argument (program name)
-        let args = Args::parse_args_default(&[] as &[&str]).unwrap();
-        assert!(!args.help);
+        Args::command().debug_assert();
+
+        // Test default args
+        let args = Args::try_parse_from(["zinc_oxide"]).unwrap();
         assert!(args.path.is_none());
         assert!(!args.files);
         assert!(!args.empty);
 
         // Test with flags
-        let args = Args::parse_args_default(&["--files", "--empty"]).unwrap();
+        let args = Args::try_parse_from(["zinc_oxide", "--files", "--empty"]).unwrap();
         assert!(args.files);
         assert!(args.empty);
 
         // Test with path
-        let args = Args::parse_args_default(&["--path", "/test/path"]).unwrap();
+        let args = Args::try_parse_from(["zinc_oxide", "--path", "/test/path"]).unwrap();
         assert_eq!(args.path, Some("/test/path".to_string()));
 
         // Test compact flag
-        let args = Args::parse_args_default(&["-c"]).unwrap();
+        let args = Args::try_parse_from(["zinc_oxide", "-c"]).unwrap();
         assert!(args.compact);
 
         #[cfg(feature = "nix")]
         {
             // Test flakes flag
-            let args = Args::parse_args_default(&["--flakes"]).unwrap();
+            let args = Args::try_parse_from(["zinc_oxide", "--flakes"]).unwrap();
             assert!(args.flakes);
-            let args = Args::parse_args_default(&["-F"]).unwrap();
+            let args = Args::try_parse_from(["zinc_oxide", "-F"]).unwrap();
             assert!(args.flakes);
         }
     }

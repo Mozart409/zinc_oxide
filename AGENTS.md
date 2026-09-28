@@ -32,7 +32,7 @@ cargo build --features nix
 cargo run --features nix -- -F -p ~/code
 
 # Build with just
-just                    # Runs bacon in watch mode
+just                    # Pick a recipe interactively (just --choose)
 ```
 
 ### Testing
@@ -47,19 +47,18 @@ cargo test test_find_git_repositories_empty_directory
 # Run tests via just
 just test
 
-# Run tests in watch mode (via bacon)
-bacon test
+# Run tests in watch mode (via watchexec)
+watchexec -e rs,toml -- cargo test
 
-# Run specific test with bacon
-bacon test -- test_name_here
+# Run specific test in watch mode
+watchexec -e rs,toml -- cargo test test_name_here
 ```
 
 ### Linting and Formatting
 
 ```bash
-# Run clippy
-cargo clippy
-cargo clippy --all-targets
+# Run all lints (clippy with all features + dprint check); warnings are errors
+just lint
 
 # Format code with dprint
 dprint fmt
@@ -76,10 +75,10 @@ just deny
 
 ```bash
 # Watch mode for development (recommended)
-bacon                   # Default: runs check
-bacon run-long          # Run the CLI and restart on changes
-bacon test              # Run tests in watch mode
-bacon clippy-all        # Run clippy on all targets
+watchexec -e rs,toml -- cargo check                # Type-check on changes
+watchexec -r -e rs,toml -- cargo run -- -p ~/code  # Run the CLI and restart on changes
+watchexec -e rs,toml -- cargo test                 # Run tests on changes
+watchexec -e rs,toml -- just lint                  # Lint on changes
 
 # Available via nix dev shell
 nix develop             # Enter development environment
@@ -117,9 +116,15 @@ nix develop             # Enter development environment
 ### Code Organization
 
 - Main logic in `src/main.rs` (single-file binary)
-- CLI arguments defined with `gumdrop::Options` derive macro
+- CLI arguments defined with `clap::Parser` derive macro
 - Unit tests in `#[cfg(test)]` module within `main.rs`
 - Integration tests in `tests/` directory
+
+### Lints
+
+- Clippy lints are configured in `Cargo.toml` under `[lints]`: `pedantic` and `nursery` are denied, as are panicking constructs (`unwrap_used`, `expect_used`, `indexing_slicing`, `panic`, `as_conversions`, etc.). All warnings are errors.
+- `clippy.toml` allows `unwrap`/`expect`/indexing/`panic` inside tests only.
+- Always lint via `just lint`; the git hooks, CI and the `cog bump` pre-bump hooks call it.
 
 ### Comments and Documentation
 
@@ -139,13 +144,29 @@ nix develop             # Enter development environment
 │   ├── edge_cases.rs          # Edge case tests
 │   └── run_function_tests.rs # Function-specific tests
 ├── justfile            # Task runner configuration
-├── bacon.toml          # File watcher configuration
 ├── deny.toml           # Cargo deny configuration
 ├── dprint.json         # Code formatter configuration
 ├── cog.toml            # Conventional commits config
 ├── flake.nix           # Nix development environment
 └── website/            # Separate web project (excluded from Rust build)
 ```
+
+## Testing Philosophy
+
+- **NEVER write unit tests after you write code.** Unit tests written after the
+  fact tend to just re-describe the implementation rather than verify
+  behavior.
+- **Highly prefer E2E tests as the sole testing mechanism.** Use them to
+  verify complex features work end-to-end. At the end of an E2E test, produce
+  a verifiable and repeatable artifact (e.g. a downloaded/verified file, a
+  persisted DB row, an API response fixture) rather than just asserting a
+  process exited cleanly.
+- **If you must test a system in isolation**, first write down all the ways
+  it could fail, _then_ write the code to guard against those failure modes.
+  Do not write the code first and backfill unit tests against it.
+- **When writing an E2E test, don't pick the simplest possible scenario to
+  prove the happy path works.** Pick a medium-to-hard scenario when verifying
+  the work.
 
 ## Testing Strategy
 
@@ -174,7 +195,7 @@ nix develop             # Enter development environment
 
 - `color-eyre`: Error handling and reporting
 - `git2`: Git operations (with `vendored-libgit2` feature)
-- `gumdrop`: CLI argument parsing
+- `clap` (derive): CLI argument parsing
 
 ### Development
 
@@ -194,9 +215,11 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 
 - Follow conventional commits (enforced by cocogitto)
 - Use `lefthook` for git hooks management
-  - `pre-commit`: runs `keep-sorted`, `dprint check`, `cargo clippy --all-targets -- -D warnings -W clippy::pedantic`, and `cargo test` in parallel
-  - `pre-push`: runs `cargo deny check` and `cargo build --release --features nix` in parallel
+  - `pre-commit`: runs `keep-sorted` (auto-fixes and restages `*.nix`), `dprint fmt` followed by `just lint`, and `cargo test` in parallel
+  - `commit-msg`: validates the commit message with `cog verify`
+  - `pre-push`: runs `keep-sorted --mode=lint`, `cargo deny check`, `cargo build --release --features nix`, and `just lint` in parallel
 - Main branch: `main`
+- Releases: run `just release` (`cog bump --auto`) on a clean `main`. Pre-bump hooks in `cog.toml` run tests (with and without `nix`), `just lint`, `cargo deny check`, then `cargo set-version` updates `Cargo.toml`/`Cargo.lock`; cog writes `CHANGELOG.md`, commits `chore(version): vX.Y.Z`, tags `vX.Y.Z`, and the post-bump hook pushes commit and tag atomically (the tag triggers `.github/workflows/release.yml`)
 
 ## Important Notes
 
@@ -206,3 +229,9 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 - **Bare repositories**: The tool skips bare git repositories
 - **Non-mutating flake checks**: `check_flake_updates` invokes `nix flake update --flake <path>` but redirects the output lock to a temporary path (`temporary_lock_path`), so the project's real `flake.lock` is never written. Flakes lacking a `flake.lock` are reported as needing initialization rather than being silently created.
 - **Feature-gated code**: All flake logic is gated behind `#[cfg(feature = "nix")]`. A stub `collect_flake_statuses` exists under `#[cfg(not(feature = "nix"))]` that errors when `--flakes` is passed without the feature compiled in.
+
+## Common Pitfalls
+
+- **Nightly toolchain everywhere**: The dev shell (`flake.nix`, fenix `complete`) and CI (`dtolnay/rust-toolchain@nightly`) both use nightly Rust. Do not switch either one to stable. Clippy lint behaviour differs between versions, so a mismatch makes `just lint` pass locally and fail in CI. `just lint` refuses to run on a non-nightly `rustc`.
+- **`unwrap` in test helpers**: `clippy.toml` allows `unwrap`/`expect`/`panic` only in test contexts, and some clippy versions do not count plain helper functions in `tests/*.rs` (no `#[test]`) as test code. Make helpers return `Result<(), Box<dyn Error>>`, use `?` inside them, and `.unwrap()` at the `#[test]` call site.
+- **Toolchain drift**: CI installs the latest nightly, while the dev shell is pinned by `flake.lock`. If CI reports lints you can't reproduce, run `nix flake update` (or `just update`) to bring the local nightly up to date.

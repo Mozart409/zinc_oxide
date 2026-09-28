@@ -7,11 +7,27 @@ on:
 env:
   CARGO_TERM_COLOR: always
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just,dprint
+      - name: Lint
+        run: just lint
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
       - name: Build
         run: cargo build --release
       - name: Run tests
