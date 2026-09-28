@@ -5,8 +5,9 @@ pre-commit:
   parallel: true
   jobs:
     - name: keep-sorted
-      run: keep-sorted --mode=lint {all_files}
+      run: keep-sorted {staged_files}
       glob: "*.nix"
+      stage_fixed: true
     - name: dprint fmt
       glob: "*.{ts,tsx,js,jsx,cjs,mjs,json,jsonc,md,toml,yml,yaml,html,htm,css,scss,less,vue,svelte,astro}"
       run: dprint fmt --allow-no-files {staged_files}
@@ -15,9 +16,16 @@ pre-commit:
       run: cargo clippy --all-targets -- -D warnings -W clippy::pedantic
     - name: cargo test
       run: cargo test
+commit-msg:
+  jobs:
+    - name: cog verify
+      run: cog verify --file {1}
 pre-push:
   parallel: true
   jobs:
+    - name: keep-sorted
+      run: keep-sorted --mode=lint {all_files}
+      glob: "*.nix"
     - name: cargo deny
       run: cargo deny check
     - name: release build

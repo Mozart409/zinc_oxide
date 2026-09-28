@@ -194,8 +194,9 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 
 - Follow conventional commits (enforced by cocogitto)
 - Use `lefthook` for git hooks management
-  - `pre-commit`: runs `keep-sorted`, `dprint check`, `cargo clippy --all-targets -- -D warnings -W clippy::pedantic`, and `cargo test` in parallel
-  - `pre-push`: runs `cargo deny check` and `cargo build --release --features nix` in parallel
+  - `pre-commit`: runs `keep-sorted` (auto-fixes and restages `*.nix`), `dprint fmt`, `cargo clippy --all-targets -- -D warnings -W clippy::pedantic`, and `cargo test` in parallel
+  - `commit-msg`: validates the commit message with `cog verify`
+  - `pre-push`: runs `keep-sorted --mode=lint`, `cargo deny check`, `cargo build --release --features nix`, and `dprint check` in parallel
 - Main branch: `main`
 
 ## Important Notes
