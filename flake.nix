@@ -45,10 +45,13 @@
             ])
             autoPatchelfHook
             cargo-audit
+            cargo-deb
             cargo-deny
+            cargo-edit
             cargo-workspaces
             claude-code
             cocogitto
+            dprint
             # wrangler
             inputs'.wrangler-flake.packages.wrangler
             just
@@ -60,6 +63,7 @@
             nodejs_24
             opencode
             pnpm
+            watchexec
             # keep-sorted end
           ];
 

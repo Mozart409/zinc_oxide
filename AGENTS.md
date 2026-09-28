@@ -32,7 +32,7 @@ cargo build --features nix
 cargo run --features nix -- -F -p ~/code
 
 # Build with just
-just                    # Runs bacon in watch mode
+just                    # Pick a recipe interactively (just --choose)
 ```
 
 ### Testing
@@ -47,11 +47,11 @@ cargo test test_find_git_repositories_empty_directory
 # Run tests via just
 just test
 
-# Run tests in watch mode (via bacon)
-bacon test
+# Run tests in watch mode (via watchexec)
+watchexec -e rs,toml -- cargo test
 
-# Run specific test with bacon
-bacon test -- test_name_here
+# Run specific test in watch mode
+watchexec -e rs,toml -- cargo test test_name_here
 ```
 
 ### Linting and Formatting
@@ -75,10 +75,10 @@ just deny
 
 ```bash
 # Watch mode for development (recommended)
-bacon                   # Default: runs check
-bacon run-long          # Run the CLI and restart on changes
-bacon test              # Run tests in watch mode
-bacon clippy-all        # Run clippy on all targets
+watchexec -e rs,toml -- cargo check                # Type-check on changes
+watchexec -r -e rs,toml -- cargo run -- -p ~/code  # Run the CLI and restart on changes
+watchexec -e rs,toml -- cargo test                 # Run tests on changes
+watchexec -e rs,toml -- just lint                  # Lint on changes
 
 # Available via nix dev shell
 nix develop             # Enter development environment
@@ -124,7 +124,7 @@ nix develop             # Enter development environment
 
 - Clippy lints are configured in `Cargo.toml` under `[lints]`: `pedantic` and `nursery` are denied, as are panicking constructs (`unwrap_used`, `expect_used`, `indexing_slicing`, `panic`, `as_conversions`, etc.). All warnings are errors.
 - `clippy.toml` allows `unwrap`/`expect`/indexing/`panic` inside tests only.
-- Always lint via `just lint`; hooks and `release.sh` call it.
+- Always lint via `just lint`; the git hooks, CI and the `cog bump` pre-bump hooks call it.
 
 ### Comments and Documentation
 
@@ -144,7 +144,6 @@ nix develop             # Enter development environment
 │   ├── edge_cases.rs          # Edge case tests
 │   └── run_function_tests.rs # Function-specific tests
 ├── justfile            # Task runner configuration
-├── bacon.toml          # File watcher configuration
 ├── deny.toml           # Cargo deny configuration
 ├── dprint.json         # Code formatter configuration
 ├── cog.toml            # Conventional commits config
@@ -220,6 +219,7 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
   - `commit-msg`: validates the commit message with `cog verify`
   - `pre-push`: runs `keep-sorted --mode=lint`, `cargo deny check`, `cargo build --release --features nix`, and `just lint` in parallel
 - Main branch: `main`
+- Releases: run `just release` (`cog bump --auto`) on a clean `main`. Pre-bump hooks in `cog.toml` run tests (with and without `nix`), `just lint`, `cargo deny check`, then `cargo set-version` updates `Cargo.toml`/`Cargo.lock`; cog writes `CHANGELOG.md`, commits `chore(version): vX.Y.Z`, tags `vX.Y.Z`, and the post-bump hook pushes commit and tag atomically (the tag triggers `.github/workflows/release.yml`)
 
 ## Important Notes
 

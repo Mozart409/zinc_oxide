@@ -22,6 +22,9 @@ deb: clear
 rpm: clear
     cargo generate-rpm
 
+release:
+    cog bump --auto
+
 update:
     nix flake update
     git add flake.lock
