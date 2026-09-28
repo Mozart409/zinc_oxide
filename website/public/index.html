@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <title>Zinc Oxide</title>
     <meta charset="UTF-8">
@@ -7,9 +7,9 @@
     <meta name="keywords" content="Zinc Oxide rust cli nix flake">
     <meta name="author" content="Amadeus Mader">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css" />
-    <link rel="stylesheet" href="reset.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/reset.css" />
+    <link rel="stylesheet" href="/style.css" />
     <link rel="preconnect" href="https://api.fonts.coollabs.io" crossorigin />
     <link
       href="https://api.fonts.coollabs.io/css2?family=IBM+Plex+Mono:wght@300;400&display=swap"
@@ -19,12 +19,33 @@
 
   <body>
     <main class="container">
-      <h1 class="ibm-plex-mono-regular">Zinc Oxide</h1>
-      <h2 class="ibm-plex-mono-light">Documentation</h2>
+      <header class="site-header">
+        <div>
+          <h1 class="ibm-plex-mono-regular">Zinc Oxide</h1>
+          <h2 class="ibm-plex-mono-light">Documentation</h2>
+        </div>
+        <label class="theme-picker" for="theme-select">
+          Theme
+          <select id="theme-select">
+            <option value="system">System</option>
+            <optgroup label="Dark">
+              <option value="zinc">Zinc</option>
+              <option value="nord">Nord</option>
+              <option value="gruvbox">Gruvbox</option>
+            </optgroup>
+            <optgroup label="Light">
+              <option value="paper">Paper</option>
+              <option value="solarized">Solarized</option>
+            </optgroup>
+          </select>
+        </label>
+      </header>
+
       <section class="description">
         <p class="ibm-plex-mono-regular">
           A Rust CLI tool that recursively checks for git projects and reports
-          their statuses.
+          their statuses, and optionally checks Nix flakes for
+          <code>flake.lock</code> updates.
         </p>
         <p class="ibm-plex-mono-regular">
           Zinc Oxide scans directories to find git repositories and displays
@@ -37,7 +58,15 @@
       <section class="installation">
         <h3 class="ibm-plex-mono-regular">Installation</h3>
         <div class="code-block">
-          <code>https://github.com/mozart409/zinc_oxide</code>
+          <code>git clone https://github.com/mozart409/zinc_oxide</code><br>
+          <code>cargo install --path zinc_oxide</code>
+        </div>
+        <p class="ibm-plex-mono-regular">
+          To enable the Nix flake checker, build with the <code>nix</code>
+          feature:
+        </p>
+        <div class="code-block">
+          <code>cargo install --path zinc_oxide --features nix</code>
         </div>
       </section>
 
@@ -75,46 +104,108 @@
           Includes repositories that have no uncommitted changes in the output.
         </p>
 
+        <h4 class="ibm-plex-mono-light">Compact output</h4>
+        <div class="code-block">
+          <code>zinc_oxide -c</code>
+        </div>
+        <p class="ibm-plex-mono-regular">
+          Prints only the number of repositories with uncommitted files, e.g.
+          <code>3 repos</code>. Combined with <code>-F</code> it also counts
+          flakes with updates: <code>3 repos, 2 flakes with updates</code>.
+        </p>
+
         <h4 class="ibm-plex-mono-light">Combine options</h4>
         <div class="code-block">
           <code>zinc_oxide --path ~/code -f -e</code>
         </div>
+      </section>
 
-        <h4 class="ibm-plex-mono-light">Check Nix flake locks</h4>
+      <section class="flakes">
+        <h3 class="ibm-plex-mono-regular">Nix flake lock checker</h3>
         <div class="code-block">
-          <code>cargo install --path . --features nix</code><br>
           <code>zinc_oxide --path ~/code --flakes</code><br>
-          <code>zinc_oxide -F -p ~/code/rust/axon-gateway</code>
+          <code>zinc_oxide -F -f -p ~/code/rust/axon-gateway</code>
         </div>
         <p class="ibm-plex-mono-regular">
           Recursively discovers directories containing a
           <code>flake.nix</code> and checks each one for available
-          <code>flake.lock</code> updates. The check runs against a throwaway
-          lock path, so your existing <code>flake.lock</code> files are never
-          modified. Requires building with the <code>nix</code> Cargo feature
-          and having the <code>nix</code> CLI on <code>PATH</code>.
+          <code>flake.lock</code> updates. Requires building with the
+          <code>nix</code> Cargo feature and having the <code>nix</code> CLI on
+          <code>PATH</code>. Without the feature, <code>--flakes</code> exits
+          with an error.
         </p>
+        <ul class="ibm-plex-mono-regular">
+          <li>
+            <strong>Non-mutating:</strong> each check runs
+            <code>nix flake update</code> against a throwaway lock path, so your
+            existing <code>flake.lock</code> files are never modified.
+          </li>
+          <li>
+            <strong>Parallel:</strong> up to 8 flakes are checked at once.
+          </li>
+          <li>
+            <strong>Timeouts:</strong> each check is abandoned after
+            <code>--flake-timeout</code> seconds (default 120).
+          </li>
+          <li>
+            <strong>Changed inputs:</strong> with <code>-f</code>, lists the
+            flake's direct inputs whose locked revision would change, or notes
+            that only transitive inputs changed.
+          </li>
+          <li>
+            <strong>Missing locks:</strong> flakes without a
+            <code>flake.lock</code> are reported as needing initialization
+            instead of having one created.
+          </li>
+          <li>
+            <strong>Failures:</strong> failed checks show the error output from
+            <code>nix</code>.
+          </li>
+        </ul>
+
+        <h4 class="ibm-plex-mono-light">Example output</h4>
+        <pre class="code-block"><code>Found 4 Nix flakes:
+
+--- Flake: /home/you/code/rust/axon-gateway ---
+Updates available!
+  nixpkgs: 3b9f00d -&gt; 8a2c4e1
+
+--- Flake: /home/you/code/rust/zinc_oxide ---
+Updates available!
+  (only transitive inputs changed)
+
+--- Flake: /home/you/code/scratch ---
+No flake.lock file (needs initialization)
+
+--- Flake: /home/you/code/website ---
+No updates available</code></pre>
       </section>
 
       <section class="options">
         <h3 class="ibm-plex-mono-regular">Options</h3>
         <ul class="ibm-plex-mono-regular">
           <li><code>-h, --help</code>: Print help message</li>
+          <li><code>-v, --version</code>: Print version information</li>
           <li>
-            <code>-p, --path &lt;p&gt;</code>: Check this absolute path
+            <code>-p, --path &lt;PATH&gt;</code>: Check this absolute path
             (defaults to current directory)
           </li>
           <li>
             <code>-f, --files</code>: Show individual files with uncommitted
-            changes
+            changes (and changed flake inputs with <code>--flakes</code>)
           </li>
           <li>
             <code>-e, --empty</code>: Show empty repositories (those with no
             uncommitted changes)
           </li>
+          <li><code>-c, --compact</code>: Only print counts</li>
           <li>
             <code>-F, --flakes</code>: Check Nix flakes for lock updates (build
             with <code>--features nix</code>)
+          </li>
+          <li>
+            <code>--flake-timeout &lt;SECS&gt;</code>: Seconds to wait for each
+            flake check (default 120)
           </li>
         </ul>
       </section>
@@ -128,9 +219,10 @@
           <code>zinc_oxide --path ~/dev -f</code><br><br>
           <code># Show all repositories including clean ones</code><br>
           <code>zinc_oxide -e</code><br><br>
-          <code># Check Nix flakes for available lock updates
-            (non-mutating)</code><br>
-          <code>zinc_oxide -F -p ~/code</code>
+          <code># Check flakes and list which inputs would change</code><br>
+          <code>zinc_oxide -F -f -p ~/code</code><br><br>
+          <code># Give slow flakes more time</code><br>
+          <code>zinc_oxide -F --flake-timeout 300 -p ~/code</code>
         </div>
       </section>
 
@@ -140,13 +232,15 @@
           <li>Recursive directory scanning for git repositories</li>
           <li>Status reporting for uncommitted changes</li>
           <li>File-level detail when requested</li>
-          <li>Hidden directory filtering</li>
-          <li>Bare repository detection and exclusion</li>
+          <li>Hidden directories and symlinks are not followed</li>
+          <li>Bare and invalid repositories are skipped</li>
           <li>
-            Optional Nix flake lock-update checker (non-mutating; behind the
+            Optional Nix flake lock-update checker: non-mutating, parallel, with
+            per-flake timeouts and changed-input listing (behind the
             <code>nix</code> Cargo feature)
           </li>
-          <li>Comprehensive test coverage</li>
+          <li>Non-zero exit status on errors</li>
+          <li>End-to-end test suite against golden output</li>
         </ul>
       </section>
     </main>

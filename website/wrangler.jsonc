@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "website",
-  "main": "src/index.ts",
+  "main": "src/index.tsx",
   "minify": true,
   "compatibility_date": "2025-11-20",
   "assets": { "directory": "public" },
