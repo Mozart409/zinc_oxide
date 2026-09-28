@@ -57,7 +57,7 @@ watchexec -e rs,toml -- cargo test test_name_here
 ### Linting and Formatting
 
 ```bash
-# Run all lints (clippy with all features + dprint check); warnings are errors
+# Run all lints (clippy with and without features + dprint check); warnings are errors
 just lint
 
 # Format code with dprint
@@ -142,6 +142,7 @@ nix develop             # Enter development environment
 ├── tests/
 │   ├── integration_tests.rs   # CLI integration tests
 │   ├── edge_cases.rs          # Edge case tests
+│   ├── flake_tests.rs         # E2E flake checker tests (`nix` feature, needs `nix` on PATH, offline)
 │   └── run_function_tests.rs # Function-specific tests
 ├── justfile            # Task runner configuration
 ├── deny.toml           # Cargo deny configuration
@@ -210,6 +211,7 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 1. Builds release binary
 2. Runs all tests
 3. Creates deb and rpm packages
+4. Installs Nix and builds/tests with `--features nix` (separate `nix-feature` job)
 
 ## Git Workflow
 
@@ -227,8 +229,11 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 - **Hidden directories**: The code intentionally skips hidden directories (starting with `.`) during recursion
 - **Graceful errors**: Permission denied and other IO errors are handled gracefully - directories are skipped rather than causing panics
 - **Bare repositories**: The tool skips bare git repositories
-- **Non-mutating flake checks**: `check_flake_updates` invokes `nix flake update --flake <path>` but redirects the output lock to a temporary path (`temporary_lock_path`), so the project's real `flake.lock` is never written. Flakes lacking a `flake.lock` are reported as needing initialization rather than being silently created.
-- **Feature-gated code**: All flake logic is gated behind `#[cfg(feature = "nix")]`. A stub `collect_flake_statuses` exists under `#[cfg(not(feature = "nix"))]` that errors when `--flakes` is passed without the feature compiled in.
+- **Single walk, no symlinks**: `find_projects` collects git repos and (with `nix`) flakes in one pass, sorted by path. It uses `DirEntry::file_type`, so symlinks are never followed (no loops, no walking into `/nix/store` via `result` links).
+- **Non-mutating flake checks**: `flake::check` invokes `nix flake update --flake <path> --output-lock-file <tempdir>/flake.lock`, so the project's real `flake.lock` is never written. Changes are found by diffing the `locked` entry of each node in the old and new lock (`nix` prints nothing in this mode). Flakes lacking a `flake.lock` are reported as needing initialization rather than being silently created.
+- **Parallel, bounded flake checks**: `flake::check_all` runs up to 8 checks at once; each `nix` process is killed after `--flake-timeout` seconds. Failures keep nix's stderr and are printed.
+- **Feature-gated code**: All flake logic lives in `mod flake` gated behind `#[cfg(feature = "nix")]`, with `serde_json` and `tempfile` as optional dependencies of the feature. Without the feature, `run` errors when `--flakes` is passed.
+- **Exit codes**: `main` returns `ExitCode::FAILURE` when `run` errors.
 
 ## Common Pitfalls
 

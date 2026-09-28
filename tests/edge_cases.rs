@@ -143,3 +143,23 @@ fn test_empty_git_directory() {
     let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path").arg(temp_dir.path()).assert().success();
 }
+
+#[test]
+fn test_symlinked_repositories_are_not_followed() {
+    let root = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+
+    let real = root.path().join("real");
+    fs::create_dir_all(real.join(".git")).unwrap();
+    let linked = outside.path().join("linked");
+    fs::create_dir_all(linked.join(".git")).unwrap();
+    std::os::unix::fs::symlink(&real, root.path().join("alias")).unwrap();
+    std::os::unix::fs::symlink(&linked, root.path().join("result")).unwrap();
+
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
+    cmd.arg("--path")
+        .arg(root.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Found 1 git repositories"));
+}

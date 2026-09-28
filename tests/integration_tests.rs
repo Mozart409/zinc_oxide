@@ -110,3 +110,16 @@ fn test_cli_shows_changed_files() {
     // The CLI will try to open the repo as a git repo and fail, but it should still find it
     assert!(output_str.contains("Found 1 git repositories"));
 }
+
+#[test]
+#[cfg(not(feature = "nix"))]
+fn test_cli_flakes_without_feature_fails() {
+    let temp_dir = TempDir::new().unwrap();
+    let mut cmd = cargo_bin_cmd!("zinc_oxide");
+    cmd.arg("--flakes")
+        .arg("--path")
+        .arg(temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("--features nix"));
+}

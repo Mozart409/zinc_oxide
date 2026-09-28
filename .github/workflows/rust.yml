@@ -39,3 +39,16 @@ jobs:
         run: cargo deb
       - name: Create rpm
         run: cargo generate-rpm
+  nix-feature:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Build with nix feature
+        run: cargo build --release --features nix
+      - name: Run tests with nix feature
+        run: cargo test --features nix

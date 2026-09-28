@@ -1,14 +1,7 @@
 use clap::Parser;
 use color_eyre::eyre::Result;
 use git2::{Repository, StatusOptions};
-#[cfg(feature = "nix")]
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    process::{self, Command},
-    time::{SystemTime, UNIX_EPOCH},
-};
-use std::{env, fs, path::Path, path::PathBuf};
+use std::{env, fs, path::Path, path::PathBuf, process::ExitCode};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -27,7 +20,7 @@ struct Args {
     #[arg(short, long, value_name = "PATH")]
     path: Option<String>,
 
-    /// Show individual files
+    /// Show individual files (and changed flake inputs with --flakes)
     #[arg(short, long)]
     files: bool,
 
@@ -42,9 +35,19 @@ struct Args {
     /// Check Nix flakes for lock updates
     #[arg(short = 'F', long)]
     flakes: bool,
+
+    /// Seconds to wait for each flake check before giving up
+    #[arg(
+        long,
+        value_name = "SECS",
+        default_value_t = 120,
+        value_parser = clap::value_parser!(u64).range(1..)
+    )]
+    #[cfg_attr(not(feature = "nix"), allow(dead_code))]
+    flake_timeout: u64,
 }
 
-fn main() {
+fn main() -> ExitCode {
     if let Err(e) = color_eyre::install() {
         eprintln!("Error: {e}");
     }
@@ -53,81 +56,59 @@ fn main() {
 
     if args.version {
         println!("zinc_oxide {VERSION}");
-        return;
+        return ExitCode::SUCCESS;
     }
 
     match run(&args) {
-        Ok(()) => {}
-        Err(e) => eprintln!("Error: {e}"),
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("Error: {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 
-fn find_git_repositories(dir: &Path) -> Result<Vec<PathBuf>> {
-    let mut repos = Vec::new();
+/// Git repositories and (with the `nix` feature) flakes found under a directory.
+#[derive(Default)]
+struct Projects {
+    repos: Vec<PathBuf>,
+    #[cfg(feature = "nix")]
+    flakes: Vec<PathBuf>,
+}
 
+/// Recursively finds projects under `dir` in a single pass, sorted by path.
+///
+/// Hidden directories are skipped and symlinks are never followed, which avoids
+/// symlink loops and walking into `/nix/store` through `result` links.
+fn find_projects(dir: &Path) -> Projects {
+    let mut projects = Projects::default();
+    walk(dir, &mut projects);
+    projects.repos.sort();
+    #[cfg(feature = "nix")]
+    projects.flakes.sort();
+    projects
+}
+
+fn walk(dir: &Path, projects: &mut Projects) {
     if dir.join(".git").exists() {
-        repos.push(dir.to_path_buf());
+        projects.repos.push(dir.to_path_buf());
     }
-
-    // Recursively search subdirectories
-    if dir.is_dir() {
-        let Ok(entries) = fs::read_dir(dir) else {
-            return Ok(repos); // Skip directories we can't read (permission denied, etc.)
-        };
-
-        for entry in entries {
-            let Ok(entry) = entry else {
-                continue; // Skip entries we can't read
-            };
-            let path = entry.path();
-
-            if path.is_dir()
-                && path
-                    .file_name()
-                    .is_some_and(|name| !name.to_string_lossy().starts_with('.'))
-            {
-                repos.extend(find_git_repositories(&path)?);
-            }
-        }
-    }
-
-    Ok(repos)
-}
-
-#[cfg(feature = "nix")]
-fn find_flake_projects(dir: &Path) -> Result<Vec<PathBuf>> {
-    let mut flakes = Vec::new();
-
+    #[cfg(feature = "nix")]
     if dir.join("flake.nix").exists() {
-        flakes.push(dir.to_path_buf());
+        projects.flakes.push(dir.to_path_buf());
     }
 
-    if dir.is_dir() {
-        let Ok(entries) = fs::read_dir(dir) else {
-            return Ok(flakes);
-        };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return; // Skip directories we can't read (permission denied, etc.)
+    };
 
-        for entry in entries {
-            let Ok(entry) = entry else {
-                continue;
-            };
-            let path = entry.path();
-
-            if path.is_dir()
-                && path
-                    .file_name()
-                    .is_some_and(|name| !name.to_string_lossy().starts_with('.'))
-            {
-                flakes.extend(find_flake_projects(&path)?);
-            }
+    for entry in entries.flatten() {
+        // `DirEntry::file_type` does not follow symlinks
+        let is_dir = entry.file_type().is_ok_and(|file_type| file_type.is_dir());
+        if is_dir && !entry.file_name().to_string_lossy().starts_with('.') {
+            walk(&entry.path(), projects);
         }
     }
-
-    Ok(flakes)
-}
-
-const fn flakes_enabled(args: &Args) -> bool {
-    args.flakes
 }
 
 struct RepoStatus {
@@ -136,155 +117,11 @@ struct RepoStatus {
     files: Vec<String>,
 }
 
-struct FlakeStatus {
-    path: PathBuf,
-    has_lock_file: bool,
-    updates_available: Option<bool>,
-    update_output: Option<String>,
-}
-
-#[cfg(feature = "nix")]
-fn check_flake_updates(flake_path: &Path) -> FlakeStatus {
-    let has_lock_file = flake_path.join("flake.lock").exists();
-    let mut updates_available = None;
-    let mut update_output = None;
-
-    if !has_lock_file {
-        return FlakeStatus {
-            path: flake_path.to_path_buf(),
-            has_lock_file,
-            updates_available,
-            update_output,
-        };
-    }
-
-    let lock_path = flake_path.join("flake.lock");
-    let output_lock_path = temporary_lock_path(flake_path);
-    let old_content = match fs::read_to_string(&lock_path) {
-        Ok(content) => content,
-        Err(e) => {
-            return FlakeStatus {
-                path: flake_path.to_path_buf(),
-                has_lock_file,
-                updates_available,
-                update_output: Some(format!("Failed to read lock file: {e}")),
-            };
-        }
-    };
-
-    let output = Command::new("nix")
-        .args(["flake", "update", "--flake"])
-        .arg(flake_path)
-        .arg("--output-lock-file")
-        .arg(&output_lock_path)
-        .output();
-
-    match output {
-        Ok(result) => {
-            let stdout = String::from_utf8_lossy(&result.stdout);
-            let stderr = String::from_utf8_lossy(&result.stderr);
-            let combined = format!("{stdout}{stderr}");
-
-            if result.status.success() {
-                match fs::read_to_string(&output_lock_path) {
-                    Ok(new_content) => {
-                        let has_updates = old_content != new_content;
-                        updates_available = Some(has_updates);
-
-                        if has_updates {
-                            update_output = Some(if combined.trim().is_empty() {
-                                "Lock file differs after update".to_string()
-                            } else {
-                                combined.trim().to_string()
-                            });
-                        } else {
-                            update_output = Some("No updates available".to_string());
-                        }
-                    }
-                    Err(e) => {
-                        update_output = Some(format!("Failed to read generated lock file: {e}"));
-                    }
-                }
-            } else {
-                let status = result.status;
-                update_output = Some(if combined.trim().is_empty() {
-                    format!("nix command failed with status {status}")
-                } else {
-                    combined.trim().to_string()
-                });
-            }
-        }
-        Err(e) => {
-            update_output = Some(format!("nix command failed: {e}"));
-        }
-    }
-
-    let _ = fs::remove_file(&output_lock_path);
-
-    FlakeStatus {
-        path: flake_path.to_path_buf(),
-        has_lock_file,
-        updates_available,
-        update_output,
-    }
-}
-
-#[cfg(feature = "nix")]
-fn temporary_lock_path(flake_path: &Path) -> PathBuf {
-    let mut hasher = DefaultHasher::new();
-    flake_path.hash(&mut hasher);
-    let path_hash = hasher.finish();
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_nanos());
-
-    env::temp_dir().join(format!(
-        "zinc_oxide-flake-lock-{}-{path_hash:x}-{timestamp}.lock",
-        process::id()
-    ))
-}
-
-#[cfg(feature = "nix")]
-fn collect_flake_statuses(args: &Args, search_path: &Path) -> Result<(Vec<FlakeStatus>, usize)> {
-    if !flakes_enabled(args) {
-        return Ok((Vec::new(), 0));
-    }
-
-    let flake_paths = find_flake_projects(search_path)?;
-    let total_flakes = flake_paths.len();
-    let flake_statuses = flake_paths
-        .iter()
-        .map(|flake_path| check_flake_updates(flake_path))
-        .collect();
-
-    Ok((flake_statuses, total_flakes))
-}
-
-#[cfg(not(feature = "nix"))]
-fn collect_flake_statuses(args: &Args, _search_path: &Path) -> Result<(Vec<FlakeStatus>, usize)> {
-    if args.flakes {
-        return Err(color_eyre::eyre::eyre!(
-            "Nix flake checks require building with `--features nix`"
-        ));
-    }
-
-    Ok((Vec::new(), 0))
-}
-
-fn run(args: &Args) -> Result<()> {
-    let search_path: PathBuf = if let Some(path) = &args.path {
-        PathBuf::from(path)
-    } else {
-        env::current_dir()?
-    };
-
-    let repositories = find_git_repositories(&search_path)?;
-    let total_repos = repositories.len();
-
+fn collect_repo_statuses(repositories: &[PathBuf], include_empty: bool) -> Vec<RepoStatus> {
     let mut repo_statuses = Vec::new();
 
     for repo_path in repositories {
-        let Ok(repo) = Repository::open(&repo_path) else {
+        let Ok(repo) = Repository::open(repo_path) else {
             continue; // Skip invalid repositories
         };
 
@@ -299,7 +136,7 @@ fn run(args: &Args) -> Result<()> {
             continue; // Skip repos with status errors
         };
 
-        if statuses.is_empty() && !args.empty {
+        if statuses.is_empty() && !include_empty {
             continue;
         }
 
@@ -309,58 +146,73 @@ fn run(args: &Args) -> Result<()> {
             .collect();
 
         repo_statuses.push(RepoStatus {
-            path: repo_path,
+            path: repo_path.clone(),
             uncommitted_count: statuses.len(),
             files,
         });
     }
 
-    let (flake_statuses, total_flakes) = collect_flake_statuses(args, &search_path)?;
-
-    display_results(
-        &repo_statuses,
-        &flake_statuses,
-        args,
-        &search_path,
-        total_repos,
-        total_flakes,
-    );
-
-    Ok(())
+    repo_statuses
 }
 
-fn display_results(
-    repo_statuses: &[RepoStatus],
-    flake_statuses: &[FlakeStatus],
-    args: &Args,
-    search_path: &Path,
-    total_repos: usize,
-    total_flakes: usize,
-) {
-    let include_flakes = flakes_enabled(args);
-
-    if args.compact && !include_flakes {
-        let count = repo_statuses
-            .iter()
-            .filter(|r| r.uncommitted_count > 0)
-            .count();
-        println!("{count} repos");
-        return;
+fn run(args: &Args) -> Result<()> {
+    #[cfg(not(feature = "nix"))]
+    if args.flakes {
+        return Err(color_eyre::eyre::eyre!(
+            "Nix flake checks require building with `--features nix`"
+        ));
     }
 
-    if args.compact && include_flakes {
+    let search_path: PathBuf = if let Some(path) = &args.path {
+        PathBuf::from(path)
+    } else {
+        env::current_dir()?
+    };
+
+    let projects = find_projects(&search_path);
+    let repo_statuses = collect_repo_statuses(&projects.repos, args.empty);
+
+    #[cfg(feature = "nix")]
+    let flake_statuses = args.flakes.then(|| {
+        flake::check_all(
+            &projects.flakes,
+            std::time::Duration::from_secs(args.flake_timeout),
+        )
+    });
+
+    if args.compact {
         let repo_count = repo_statuses
             .iter()
             .filter(|r| r.uncommitted_count > 0)
             .count();
-        let flake_count = flake_statuses
-            .iter()
-            .filter(|f| f.updates_available.unwrap_or(false))
-            .count();
-        println!("{repo_count} repos, {flake_count} flakes with updates");
-        return;
+        #[cfg(feature = "nix")]
+        if let Some(flake_statuses) = &flake_statuses {
+            println!(
+                "{repo_count} repos, {}",
+                flake::compact_summary(flake_statuses)
+            );
+            return Ok(());
+        }
+        println!("{repo_count} repos");
+        return Ok(());
     }
 
+    display_repos(&repo_statuses, args, &search_path, projects.repos.len());
+
+    #[cfg(feature = "nix")]
+    if let Some(flake_statuses) = &flake_statuses {
+        flake::display(flake_statuses, args.files);
+    }
+
+    Ok(())
+}
+
+fn display_repos(
+    repo_statuses: &[RepoStatus],
+    args: &Args,
+    search_path: &Path,
+    total_repos: usize,
+) {
     println!("zinc_oxide v{VERSION}");
     println!(
         "Searching for git repositories in: {}",
@@ -369,54 +221,294 @@ fn display_results(
 
     if total_repos == 0 {
         println!("No git repositories found.");
-    } else {
-        println!("Found {total_repos} git repositories:");
+        return;
+    }
 
-        for repo in repo_statuses {
-            println!("\n--- Repository: {} ---", repo.path.display());
+    println!("Found {total_repos} git repositories:");
 
-            if repo.uncommitted_count == 0 {
-                println!("No uncommitted files");
-            } else {
-                println!("Found {} uncommitted files", repo.uncommitted_count);
-                if args.files {
-                    for file in &repo.files {
-                        println!("  {file}");
-                    }
+    for repo in repo_statuses {
+        println!("\n--- Repository: {} ---", repo.path.display());
+
+        if repo.uncommitted_count == 0 {
+            println!("No uncommitted files");
+        } else {
+            println!("Found {} uncommitted files", repo.uncommitted_count);
+            if args.files {
+                for file in &repo.files {
+                    println!("  {file}");
                 }
             }
         }
     }
+}
 
-    if include_flakes {
-        println!();
-        if total_flakes == 0 {
-            println!("No Nix flakes found.");
-        } else {
-            println!("Found {total_flakes} Nix flakes:");
+/// Checks flakes for `flake.lock` updates without ever writing the real lock file.
+#[cfg(feature = "nix")]
+mod flake {
+    use color_eyre::eyre::{Result, WrapErr, eyre};
+    use serde_json::{Map, Value};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        fs,
+        io::Read,
+        num::NonZeroUsize,
+        path::{Path, PathBuf},
+        process::{Command, Stdio},
+        sync::atomic::{AtomicUsize, Ordering},
+        thread,
+        time::{Duration, Instant},
+    };
 
-            for flake in flake_statuses {
-                println!("\n--- Flake: {} ---", flake.path.display());
+    /// Upper bound on concurrently running `nix` processes.
+    const MAX_PARALLEL_CHECKS: usize = 8;
+    const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
-                if flake.has_lock_file {
-                    match flake.updates_available {
-                        Some(true) => {
-                            println!("Updates available!");
-                            if args.files
-                                && let Some(output) = &flake.update_output
-                            {
-                                for line in output.lines() {
-                                    if line.contains("Updated") || line.contains("updated") {
-                                        println!("  {line}");
-                                    }
-                                }
-                            }
+    pub struct FlakeStatus {
+        path: PathBuf,
+        check: FlakeCheck,
+    }
+
+    enum FlakeCheck {
+        /// No `flake.lock` yet; the flake needs initialization.
+        MissingLock,
+        UpToDate,
+        Updates(Vec<InputChange>),
+        Failed(String),
+    }
+
+    /// A direct input whose locked source would change; `None` means added/removed.
+    struct InputChange {
+        name: String,
+        old: Option<String>,
+        new: Option<String>,
+    }
+
+    /// Checks all flakes in parallel, returning statuses in the input order.
+    pub fn check_all(flakes: &[PathBuf], timeout: Duration) -> Vec<FlakeStatus> {
+        let next = AtomicUsize::new(0);
+        let workers = thread::available_parallelism()
+            .map_or(1, NonZeroUsize::get)
+            .min(MAX_PARALLEL_CHECKS)
+            .min(flakes.len());
+
+        let mut results: Vec<(usize, FlakeStatus)> = thread::scope(|scope| {
+            let handles: Vec<_> = (0..workers)
+                .map(|_| {
+                    scope.spawn(|| {
+                        let mut done = Vec::new();
+                        loop {
+                            let index = next.fetch_add(1, Ordering::Relaxed);
+                            let Some(path) = flakes.get(index) else {
+                                break done;
+                            };
+                            let check = check(path, timeout)
+                                .unwrap_or_else(|e| FlakeCheck::Failed(format!("{e:#}")));
+                            done.push((
+                                index,
+                                FlakeStatus {
+                                    path: path.clone(),
+                                    check,
+                                },
+                            ));
                         }
-                        Some(false) => println!("No updates available"),
-                        None => println!("Unable to check for updates (nix command failed)"),
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .flat_map(|handle| handle.join().unwrap_or_default())
+                .collect()
+        });
+
+        results.sort_by_key(|(index, _)| *index);
+        results.into_iter().map(|(_, status)| status).collect()
+    }
+
+    fn check(flake: &Path, timeout: Duration) -> Result<FlakeCheck> {
+        let lock_path = flake.join("flake.lock");
+        if !lock_path.exists() {
+            return Ok(FlakeCheck::MissingLock);
+        }
+        let old = read_lock_nodes(&lock_path).wrap_err("failed to read flake.lock")?;
+
+        // nix writes the updated lock into this scratch dir, never to the real flake.lock
+        let scratch = tempfile::tempdir()?;
+        let new_lock_path = scratch.path().join("flake.lock");
+        let mut command = Command::new("nix");
+        command
+            .args(["flake", "update", "--flake"])
+            .arg(flake)
+            .arg("--output-lock-file")
+            .arg(&new_lock_path);
+        run_with_timeout(command, timeout)?;
+
+        let new = read_lock_nodes(&new_lock_path).wrap_err("failed to read updated lock file")?;
+        Ok(if old == new {
+            FlakeCheck::UpToDate
+        } else {
+            FlakeCheck::Updates(diff_direct_inputs(&old, &new))
+        })
+    }
+
+    /// Runs `command`, killing it once it outlives `timeout`. Errors carry nix's stderr.
+    fn run_with_timeout(mut command: Command, timeout: Duration) -> Result<()> {
+        let mut child = command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .wrap_err("failed to run nix")?;
+
+        // Drain stderr concurrently so a chatty nix can't block on a full pipe
+        let stderr_reader = child.stderr.take().map(|mut pipe| {
+            thread::spawn(move || {
+                let mut output = String::new();
+                let _ = pipe.read_to_string(&mut output);
+                output
+            })
+        });
+
+        let started = Instant::now();
+        let status = loop {
+            if let Some(status) = child.try_wait()? {
+                break status;
+            }
+            if started.elapsed() >= timeout {
+                let _ = child.kill();
+                let _ = child.wait();
+                // The reader thread is left detached: nix's own children may hold the pipe open
+                return Err(eyre!("timed out after {}s", timeout.as_secs()));
+            }
+            thread::sleep(POLL_INTERVAL);
+        };
+
+        if status.success() {
+            return Ok(());
+        }
+        let stderr = stderr_reader
+            .and_then(|reader| reader.join().ok())
+            .unwrap_or_default();
+        let stderr = stderr.trim();
+        Err(if stderr.is_empty() {
+            eyre!("nix exited with {status}")
+        } else {
+            eyre!("{stderr}")
+        })
+    }
+
+    /// Reads the `nodes` map of a lock file.
+    fn read_lock_nodes(path: &Path) -> Result<Map<String, Value>> {
+        let mut lock: Value = serde_json::from_str(&fs::read_to_string(path)?)?;
+        Ok(match lock.get_mut("nodes").map(Value::take) {
+            Some(Value::Object(nodes)) => nodes,
+            _ => Map::new(),
+        })
+    }
+
+    /// Maps each direct input of the root node to its `locked` entry.
+    ///
+    /// Node keys like `nixpkgs_2` are renumbered by nix as transitive inputs shift,
+    /// so inputs are resolved by name through the root; `follows` inputs are skipped.
+    fn direct_inputs(nodes: &Map<String, Value>) -> BTreeMap<&str, Option<&Value>> {
+        nodes
+            .get("root")
+            .and_then(|root| root.get("inputs"))
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+            .filter_map(|(name, key)| {
+                let node = nodes.get(key.as_str()?)?;
+                Some((name.as_str(), node.get("locked")))
+            })
+            .collect()
+    }
+
+    /// Lists direct inputs whose locked source differs between two lock files.
+    fn diff_direct_inputs(old: &Map<String, Value>, new: &Map<String, Value>) -> Vec<InputChange> {
+        let old_inputs = direct_inputs(old);
+        let new_inputs = direct_inputs(new);
+        let names: BTreeSet<&str> = old_inputs
+            .keys()
+            .chain(new_inputs.keys())
+            .copied()
+            .collect();
+        names
+            .into_iter()
+            .filter_map(|name| {
+                let old_locked = old_inputs.get(name).copied().flatten();
+                let new_locked = new_inputs.get(name).copied().flatten();
+                (old_locked != new_locked).then(|| InputChange {
+                    name: name.to_string(),
+                    old: old_locked.map(describe_locked),
+                    new: new_locked.map(describe_locked),
+                })
+            })
+            .collect()
+    }
+
+    /// Short identifier for a locked source: its git revision, else its content hash.
+    fn describe_locked(locked: &Value) -> String {
+        locked
+            .get("rev")
+            .or_else(|| locked.get("narHash"))
+            .and_then(Value::as_str)
+            .map_or_else(
+                || "unknown".to_string(),
+                |id| id.trim_start_matches("sha256-").chars().take(7).collect(),
+            )
+    }
+
+    const fn flakes_noun(count: usize) -> &'static str {
+        if count == 1 { "flake" } else { "flakes" }
+    }
+
+    pub fn compact_summary(statuses: &[FlakeStatus]) -> String {
+        let count = statuses
+            .iter()
+            .filter(|status| matches!(status.check, FlakeCheck::Updates(_)))
+            .count();
+        format!("{count} {} with updates", flakes_noun(count))
+    }
+
+    pub fn display(statuses: &[FlakeStatus], show_inputs: bool) {
+        println!();
+        if statuses.is_empty() {
+            println!("No Nix flakes found.");
+            return;
+        }
+
+        println!(
+            "Found {} Nix {}:",
+            statuses.len(),
+            flakes_noun(statuses.len())
+        );
+
+        for status in statuses {
+            println!("\n--- Flake: {} ---", status.path.display());
+
+            match &status.check {
+                FlakeCheck::MissingLock => println!("No flake.lock file (needs initialization)"),
+                FlakeCheck::UpToDate => println!("No updates available"),
+                FlakeCheck::Updates(changes) => {
+                    println!("Updates available!");
+                    if show_inputs && changes.is_empty() {
+                        println!("  (only transitive inputs changed)");
+                    } else if show_inputs {
+                        for change in changes {
+                            println!(
+                                "  {}: {} -> {}",
+                                change.name,
+                                change.old.as_deref().unwrap_or("(new)"),
+                                change.new.as_deref().unwrap_or("(removed)")
+                            );
+                        }
                     }
-                } else {
-                    println!("No flake.lock file (needs initialization)");
+                }
+                FlakeCheck::Failed(reason) => {
+                    println!("Unable to check for updates:");
+                    for line in reason.lines() {
+                        println!("  {line}");
+                    }
                 }
             }
         }
@@ -432,7 +524,7 @@ mod tests {
     #[test]
     fn test_find_git_repositories_empty_directory() {
         let temp_dir = TempDir::new().unwrap();
-        let repos = find_git_repositories(temp_dir.path()).unwrap();
+        let repos = find_projects(temp_dir.path()).repos;
         assert_eq!(repos.len(), 0);
     }
 
@@ -443,7 +535,7 @@ mod tests {
         // Create a .git directory
         fs::create_dir(temp_dir.path().join(".git")).unwrap();
 
-        let repos = find_git_repositories(temp_dir.path()).unwrap();
+        let repos = find_projects(temp_dir.path()).repos;
         assert_eq!(repos.len(), 1);
         assert_eq!(repos[0], temp_dir.path());
     }
@@ -467,7 +559,7 @@ mod tests {
         fs::create_dir_all(&nested).unwrap();
         fs::create_dir(nested.join(".git")).unwrap();
 
-        let repos = find_git_repositories(temp_dir.path()).unwrap();
+        let repos = find_projects(temp_dir.path()).repos;
         assert_eq!(repos.len(), 3);
     }
 
@@ -485,7 +577,7 @@ mod tests {
         fs::create_dir(&normal_dir).unwrap();
         fs::create_dir(normal_dir.join(".git")).unwrap();
 
-        let repos = find_git_repositories(temp_dir.path()).unwrap();
+        let repos = find_projects(temp_dir.path()).repos;
         assert_eq!(repos.len(), 1);
         assert_eq!(repos[0], normal_dir);
     }
@@ -493,11 +585,8 @@ mod tests {
     #[test]
     fn test_find_git_repositories_nonexistent_directory() {
         let nonexistent = PathBuf::from("/nonexistent/path");
-        let result = find_git_repositories(&nonexistent);
-        // The function should return an empty Vec for nonexistent directories
-        // since fs::read_dir returns an error but we handle it gracefully
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 0);
+        // fs::read_dir fails for nonexistent directories, which is handled gracefully
+        assert_eq!(find_projects(&nonexistent).repos.len(), 0);
     }
 
     #[test]
@@ -539,7 +628,7 @@ mod tests {
     #[cfg(feature = "nix")]
     fn test_find_flake_projects_empty_directory() {
         let temp_dir = TempDir::new().unwrap();
-        let flakes = find_flake_projects(temp_dir.path()).unwrap();
+        let flakes = find_projects(temp_dir.path()).flakes;
         assert_eq!(flakes.len(), 0);
     }
 
@@ -551,7 +640,7 @@ mod tests {
         // Create a flake.nix file
         fs::write(temp_dir.path().join("flake.nix"), "{}").unwrap();
 
-        let flakes = find_flake_projects(temp_dir.path()).unwrap();
+        let flakes = find_projects(temp_dir.path()).flakes;
         assert_eq!(flakes.len(), 1);
         assert_eq!(flakes[0], temp_dir.path());
     }
@@ -576,7 +665,7 @@ mod tests {
         fs::create_dir_all(&nested).unwrap();
         fs::write(nested.join("flake.nix"), "{}").unwrap();
 
-        let flakes = find_flake_projects(temp_dir.path()).unwrap();
+        let flakes = find_projects(temp_dir.path()).flakes;
         assert_eq!(flakes.len(), 3);
     }
 
@@ -595,7 +684,7 @@ mod tests {
         fs::create_dir(&normal_dir).unwrap();
         fs::write(normal_dir.join("flake.nix"), "{}").unwrap();
 
-        let flakes = find_flake_projects(temp_dir.path()).unwrap();
+        let flakes = find_projects(temp_dir.path()).flakes;
         assert_eq!(flakes.len(), 1);
         assert_eq!(flakes[0], normal_dir);
     }
@@ -604,19 +693,6 @@ mod tests {
     #[cfg(feature = "nix")]
     fn test_find_flake_projects_nonexistent_directory() {
         let nonexistent = PathBuf::from("/nonexistent/path");
-        let result = find_flake_projects(&nonexistent);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 0);
-    }
-
-    #[test]
-    #[cfg(feature = "nix")]
-    fn test_temporary_lock_path_is_outside_flake_project() {
-        let temp_dir = TempDir::new().unwrap();
-        let lock_path = temporary_lock_path(temp_dir.path());
-
-        assert!(lock_path.starts_with(env::temp_dir()));
-        assert!(!lock_path.starts_with(temp_dir.path()));
-        assert_ne!(lock_path.file_name().unwrap(), "flake.lock");
+        assert_eq!(find_projects(&nonexistent).flakes.len(), 0);
     }
 }
