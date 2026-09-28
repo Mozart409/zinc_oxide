@@ -1,40 +1,39 @@
 use assert_cmd::cargo::cargo_bin_cmd;
 use git2::{Repository, RepositoryInitOptions, Signature, Time};
 use predicates::prelude::*;
-use std::fs;
+use std::{error::Error, fs};
 use tempfile::TempDir;
 
-fn create_test_repo_with_changes(path: &tempfile::TempDir) {
+fn create_test_repo_with_changes(path: &tempfile::TempDir) -> Result<(), Box<dyn Error>> {
     let repo_path = path.path().join("repo");
-    std::fs::create_dir(&repo_path).unwrap();
+    std::fs::create_dir(&repo_path)?;
 
     let mut init_opts = RepositoryInitOptions::new();
     init_opts.bare(false);
     init_opts.no_reinit(true);
 
-    let repo = Repository::init_opts(&repo_path, &init_opts).unwrap();
+    let repo = Repository::init_opts(&repo_path, &init_opts)?;
 
     // Create initial commit
     let tree_id = {
-        let mut index = repo.index().unwrap();
-        index.write_tree().unwrap()
+        let mut index = repo.index()?;
+        index.write_tree()?
     };
 
-    let tree = repo.find_tree(tree_id).unwrap();
-    let signature = Signature::new("Test User", "test@example.com", &Time::new(0, 0)).unwrap();
-    let _commit_id = repo
-        .commit(
-            Some("HEAD"),
-            &signature,
-            &signature,
-            "Initial commit",
-            &tree,
-            &[],
-        )
-        .unwrap();
+    let tree = repo.find_tree(tree_id)?;
+    let signature = Signature::new("Test User", "test@example.com", &Time::new(0, 0))?;
+    let _commit_id = repo.commit(
+        Some("HEAD"),
+        &signature,
+        &signature,
+        "Initial commit",
+        &tree,
+        &[],
+    )?;
 
     // Create a modified file
-    fs::write(repo_path.join("test_file.txt"), "modified content").unwrap();
+    fs::write(repo_path.join("test_file.txt"), "modified content")?;
+    Ok(())
 }
 
 #[test]
@@ -70,7 +69,7 @@ fn test_run_function_clean_repository() {
 #[test]
 fn test_run_function_repository_with_changes() {
     let temp_dir = TempDir::new().unwrap();
-    create_test_repo_with_changes(&temp_dir);
+    create_test_repo_with_changes(&temp_dir).unwrap();
 
     let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
@@ -83,7 +82,7 @@ fn test_run_function_repository_with_changes() {
 #[test]
 fn test_run_function_with_files_flag() {
     let temp_dir = TempDir::new().unwrap();
-    create_test_repo_with_changes(&temp_dir);
+    create_test_repo_with_changes(&temp_dir).unwrap();
 
     let mut cmd = cargo_bin_cmd!("zinc_oxide");
     cmd.arg("--path")
