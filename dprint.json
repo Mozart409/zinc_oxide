@@ -27,7 +27,8 @@
     "**/*-lock.json",
     "**/pnpm-lock.yaml",
     "Cargo.lock",
-    "flake.lock"
+    "flake.lock",
+    "CHANGELOG.md"
   ],
   "plugins": [
     "https://plugins.dprint.dev/typescript-0.95.12.wasm",
