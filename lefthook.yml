@@ -37,3 +37,6 @@ pre-push:
       run: cargo build --release --features nix
     - name: just lint
       run: just lint
+    - name: website test
+      root: website/
+      run: nr test

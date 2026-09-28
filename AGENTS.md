@@ -151,7 +151,7 @@ nix develop             # Enter development environment
 ├── dprint.json         # Code formatter configuration
 ├── cog.toml            # Conventional commits config
 ├── flake.nix           # Nix development environment
-└── website/            # Separate web project (excluded from Rust build)
+└── website/            # Separate web project (excluded from Rust build); `nr test` runs its E2E tests against a local wrangler worker
 ```
 
 ## Testing Philosophy
@@ -215,7 +215,7 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 - Use `lefthook` for git hooks management
   - `pre-commit`: runs `keep-sorted` (auto-fixes and restages `*.nix`), `dprint fmt` followed by `just lint`, and `cargo test` in parallel
   - `commit-msg`: validates the commit message with `cog verify`
-  - `pre-push`: runs `keep-sorted --mode=lint`, `cargo deny check`, `cargo build --release --features nix`, and `just lint` in parallel
+  - `pre-push`: runs `keep-sorted --mode=lint`, `cargo deny check`, `cargo build --release --features nix`, `just lint`, and the website tests (`nr test` in `website/`) in parallel
 - Main branch: `main`
 - Releases: run `just release` (`cog bump --auto`) on a clean `main`. Pre-bump hooks in `cog.toml` run tests (with and without `nix`), `just lint`, `cargo deny check`, then `cargo set-version` updates `Cargo.toml`/`Cargo.lock`; cog writes `CHANGELOG.md`, commits `chore(version): vX.Y.Z`, tags `vX.Y.Z`, and the post-bump hook pushes commit and tag atomically (the tag triggers `.github/workflows/release.yml`)
 
