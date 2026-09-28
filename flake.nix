@@ -73,7 +73,20 @@
           # for a generic Linux and won't run on NixOS. Point miniflare (used by
           # `wrangler dev` and vitest-pool-workers) at the one the Nix wrangler
           # package ships, which is already patched.
+          # miniflare only works with the workerd release it was built for, so
+          # keep website's wrangler pinned to the version of ${wrangler}.
+          # These versions drift: `nix flake update` bumps the Nix wrangler
+          # while website/pnpm-lock.yaml stays put, and `wrangler dev` then
+          # misbehaves (e.g. 404 on `/`). After updating, run
+          # `pnpm add -D wrangler@<new nix version>` in website/.
+          # @cloudflare/vitest-pool-workers bundles its own miniflare and can
+          # drift the same way.
           MINIFLARE_WORKERD_PATH = "${wrangler}/lib/node_modules/workerd/bin/workerd";
+
+          # website/package.json pins an older pnpm via `packageManager`; pnpm
+          # would switch to a downloaded, generic-Linux build that can't run on
+          # NixOS. Use the Nix pnpm instead.
+          pnpm_config_manage_package_manager_versions = "false";
 
           shellHook = ''
             export LD_LIBRARY_PATH=${pkgs.nix-ld}/lib:$LD_LIBRARY_PATH

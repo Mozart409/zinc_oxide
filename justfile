@@ -31,3 +31,11 @@ update:
     nix flake update
     git add flake.lock
     git commit --only flake.lock -m "chore: update flake.lock"
+
+# website's wrangler must match the Nix wrangler version (see flake.nix);
+# they drift after `nix flake update`.
+[doc('Run the website dev server')]
+[working-directory('website')]
+website:
+    ni --frozen
+    nr dev
