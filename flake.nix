@@ -25,7 +25,9 @@
         system,
         inputs',
         ...
-      }: {
+      }: let
+        wrangler = inputs'.wrangler-flake.packages.wrangler;
+      in {
         _module.args.pkgs = import inputs.nixpkgs {
           inherit system;
           overlays = [inputs.fenix.overlays.default];
@@ -52,8 +54,6 @@
             claude-code
             cocogitto
             dprint
-            # wrangler
-            inputs'.wrangler-flake.packages.wrangler
             just
             keep-sorted
             lazydocker
@@ -64,13 +64,20 @@
             opencode
             pnpm
             watchexec
+            # wrangler
+            wrangler
             # keep-sorted end
           ];
+
+          # The workerd binary npm installs into website/node_modules is linked
+          # for a generic Linux and won't run on NixOS. Point miniflare (used by
+          # `wrangler dev` and vitest-pool-workers) at the one the Nix wrangler
+          # package ships, which is already patched.
+          MINIFLARE_WORKERD_PATH = "${wrangler}/lib/node_modules/workerd/bin/workerd";
 
           shellHook = ''
             export LD_LIBRARY_PATH=${pkgs.nix-ld}/lib:$LD_LIBRARY_PATH
             export NIX_LD=${pkgs.glibc}/lib/ld-linux-x86-64.so.2
-            ./patch-workerd.sh
             echo "Development environment is ready!"
 
             cargo -V
