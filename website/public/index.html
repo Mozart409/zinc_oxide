@@ -57,8 +57,44 @@
 
       <section class="installation">
         <h3 class="ibm-plex-mono-regular">Installation</h3>
+
+        <h4 class="ibm-plex-mono-light">Nix flake</h4>
+        <p class="ibm-plex-mono-regular">
+          The flake's default package is built with the <code>nix</code>
+          feature, so the flake lock checker (<code>-F</code>) is included.
+        </p>
+        <p class="ibm-plex-mono-regular">Try it without installing:</p>
         <div class="code-block">
-          <code>git clone https://github.com/mozart409/zinc_oxide</code><br>
+          <code>nix run github:Mozart409/zinc_oxide -- -p ~/code</code>
+        </div>
+        <p class="ibm-plex-mono-regular">Install it into your profile:</p>
+        <div class="code-block">
+          <code>nix profile install github:Mozart409/zinc_oxide</code>
+        </div>
+        <p class="ibm-plex-mono-regular">
+          Or add it to a NixOS or home-manager configuration as a flake input:
+        </p>
+        <pre class="code-block"><code>{
+  inputs.zinc_oxide.url = "github:Mozart409/zinc_oxide";
+
+  outputs = { nixpkgs, zinc_oxide, ... }: {
+    nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ({ pkgs, ... }: {
+          environment.systemPackages = [
+            zinc_oxide.packages.${pkgs.stdenv.hostPlatform.system}.default
+          ];
+          # home-manager: home.packages = [ zinc_oxide.packages.${pkgs.stdenv.hostPlatform.system}.default ];
+        })
+      ];
+    };
+  };
+}</code></pre>
+
+        <h4 class="ibm-plex-mono-light">Cargo</h4>
+        <div class="code-block">
+          <code>git clone https://github.com/Mozart409/zinc_oxide</code><br>
           <code>cargo install --path zinc_oxide</code>
         </div>
         <p class="ibm-plex-mono-regular">

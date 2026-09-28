@@ -34,6 +34,33 @@
           config.allowUnfree = true;
         };
 
+        packages.default = let
+          cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        in
+          pkgs.rustPlatform.buildRustPackage {
+            pname = cargoToml.package.name;
+            inherit (cargoToml.package) version;
+            src = pkgs.lib.fileset.toSource {
+              root = ./.;
+              fileset = pkgs.lib.fileset.unions [
+                ./Cargo.lock
+                ./Cargo.toml
+                ./src
+                ./tests
+              ];
+            };
+            cargoLock.lockFile = ./Cargo.lock;
+            buildFeatures = ["nix"];
+            # The flake tests call `nix` against real flakes, which the build
+            # sandbox can't do; run only the git report tests.
+            cargoTestFlags = ["--test" "cli"];
+            meta = {
+              inherit (cargoToml.package) description homepage;
+              license = pkgs.lib.licenses.mit;
+              mainProgram = "zinc_oxide";
+            };
+          };
+
         # to use other shells, run:
         # nix develop . --command fish
         devShells.default = pkgs.mkShell {

@@ -8,8 +8,50 @@ Zinc Oxide scans directories to find git repositories and displays their current
 
 ## Installation
 
+### Nix flake
+
+The flake's default package is built with the `nix` feature, so the flake lock checker (`-F`) is included.
+
+Try it without installing:
+
 ```bash
-curl to bash
+nix run github:Mozart409/zinc_oxide -- -p ~/code
+```
+
+Install it into your profile:
+
+```bash
+nix profile install github:Mozart409/zinc_oxide
+```
+
+Or add it to a NixOS or home-manager configuration as a flake input:
+
+```nix
+{
+  inputs.zinc_oxide.url = "github:Mozart409/zinc_oxide";
+
+  outputs = { nixpkgs, zinc_oxide, ... }: {
+    nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ({ pkgs, ... }: {
+          environment.systemPackages = [
+            zinc_oxide.packages.${pkgs.stdenv.hostPlatform.system}.default
+          ];
+          # home-manager: home.packages = [ zinc_oxide.packages.${pkgs.stdenv.hostPlatform.system}.default ];
+        })
+      ];
+    };
+  };
+}
+```
+
+### Cargo
+
+```bash
+git clone https://github.com/Mozart409/zinc_oxide
+cargo install --path zinc_oxide                 # git report only
+cargo install --path zinc_oxide --features nix  # with the flake lock checker
 ```
 
 ## Usage
@@ -53,10 +95,9 @@ zinc_oxide --path ~/code -f -e
 
 ### Check Nix flake locks
 
-The Nix flake lock checker is behind the optional `nix` feature:
+The Nix flake lock checker is behind the optional `nix` feature, which the flake package enables (see [Installation](#installation)):
 
 ```bash
-cargo install --path . --features nix
 zinc_oxide --path ~/code --flakes
 ```
 
