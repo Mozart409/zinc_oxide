@@ -17,3 +17,8 @@ deb: clear
 
 rpm: clear
     cargo generate-rpm
+
+update:
+    nix flake update
+    git add flake.lock
+    git commit --only flake.lock -m "chore: update flake.lock"
