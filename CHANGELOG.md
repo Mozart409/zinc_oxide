@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.1 - 2026-09-28
+#### Build system
+- (**deps**) bump hono from 4.12.25 to 4.13.5 in /website - (e309dbb) - dependabot[bot]
+- (**deps**) bump postcss from 8.5.15 to 8.5.28 in /website - (e7303b9) - dependabot[bot]
+- (**deps**) bump hono from 4.12.25 to 4.13.5 in /website - (100ce26) - dependabot[bot]
+- (**deps-dev**) bump vitest from 4.1.8 to 4.1.11 in /website - (dda9b0b) - dependabot[bot]
+- (**nix**) ship all features in flake package and check every feature combination - (3b967d1) - Amadeus Mader
+
+- - -
+
 ## v0.2.0 - 2026-09-28
 #### Features
 - (**deps**) upgrade cargo deps - (a2b15e1) - Amadeus Mader
