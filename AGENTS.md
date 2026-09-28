@@ -42,7 +42,10 @@ just                    # Pick a recipe interactively (just --choose)
 cargo test
 
 # Run a specific test by name
-cargo test test_find_git_repositories_empty_directory
+cargo test test_cli_default_report_matches_golden
+
+# Regenerate golden files after an intended output change (review the diff!)
+UPDATE_GOLDEN=1 cargo test
 
 # Run tests via just
 just test
@@ -57,7 +60,7 @@ watchexec -e rs,toml -- cargo test test_name_here
 ### Linting and Formatting
 
 ```bash
-# Run all lints (clippy with all features + dprint check); warnings are errors
+# Run all lints (clippy with and without features + dprint check); warnings are errors
 just lint
 
 # Format code with dprint
@@ -117,8 +120,7 @@ nix develop             # Enter development environment
 
 - Main logic in `src/main.rs` (single-file binary)
 - CLI arguments defined with `clap::Parser` derive macro
-- Unit tests in `#[cfg(test)]` module within `main.rs`
-- Integration tests in `tests/` directory
+- All tests are end-to-end tests in `tests/`; `src/main.rs` has no unit tests
 
 ### Lints
 
@@ -138,11 +140,12 @@ nix develop             # Enter development environment
 .
 ├── Cargo.toml          # Rust package manifest
 ├── src/
-│   └── main.rs         # Main application code + unit tests
+│   └── main.rs         # Main application code
 ├── tests/
-│   ├── integration_tests.rs   # CLI integration tests
-│   ├── edge_cases.rs          # Edge case tests
-│   └── run_function_tests.rs # Function-specific tests
+│   ├── cli.rs          # E2E git report tests against golden files
+│   ├── flake_tests.rs  # E2E flake checker tests (`nix` feature, needs `nix` on PATH, offline)
+│   ├── common/mod.rs   # Shared helpers: real git repos via git2, output normalization, golden files
+│   └── golden/         # Expected normalized output per CLI mode
 ├── justfile            # Task runner configuration
 ├── deny.toml           # Cargo deny configuration
 ├── dprint.json         # Code formatter configuration
@@ -170,18 +173,12 @@ nix develop             # Enter development environment
 
 ## Testing Strategy
 
-### Unit Tests (in `src/main.rs`)
-
-- Test individual functions in isolation
-- Use `tempfile::TempDir` for temporary test directories
-- Test edge cases like empty directories, nested repos, hidden dirs
-
-### Integration Tests (in `tests/`)
-
-- Test CLI behavior end-to-end using `assert_cmd`
-- Use `cargo_bin_cmd!` macro to run the compiled binary
-- Test command-line arguments and flags
-- Create real git repositories using `git2` library for realistic tests
+- Every test runs the compiled binary (`cargo_bin_cmd!` from `assert_cmd`) against a workspace built in a `tempfile::TempDir`.
+- **Git report (`tests/cli.rs`)**: `build_workspace` creates one realistic tree covering every rule (dirty/clean/fresh repos, a repo nested in a repo, bare `.git`, invalid `.git`, hidden, unreadable and symlinked dirs, deep nesting, unusual names). The full stdout of each mode is normalized (`<ROOT>`, `<VERSION>`) and compared to `tests/golden/*.txt`. When a new behavior is added, extend the workspace rather than adding a new minimal scenario.
+- **Flakes (`tests/flake_tests.rs`)**: real `nix` against local `git+file` inputs (no network); the artifact is the byte-for-byte unchanged `flake.lock` files. A fake hanging `nix` on `PATH` covers timeouts.
+- Use real repositories made with `git2` (`tests/common`), never an empty `.git` directory: libgit2 can't open those, so the repo is silently skipped and the test proves nothing.
+- Assert exact output (golden files or `assert_eq!` on whole sections), not just exit status or a loose `contains`.
+- To check the suite still catches bugs, inject a bug into `src/main.rs` and confirm a test fails.
 
 ### Test Naming
 
@@ -210,6 +207,7 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 1. Builds release binary
 2. Runs all tests
 3. Creates deb and rpm packages
+4. Installs Nix and builds/tests with `--features nix` (separate `nix-feature` job)
 
 ## Git Workflow
 
@@ -226,9 +224,12 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 - **Git2 vendored**: The project uses vendored libgit2 to avoid system dependency issues
 - **Hidden directories**: The code intentionally skips hidden directories (starting with `.`) during recursion
 - **Graceful errors**: Permission denied and other IO errors are handled gracefully - directories are skipped rather than causing panics
-- **Bare repositories**: The tool skips bare git repositories
-- **Non-mutating flake checks**: `check_flake_updates` invokes `nix flake update --flake <path>` but redirects the output lock to a temporary path (`temporary_lock_path`), so the project's real `flake.lock` is never written. Flakes lacking a `flake.lock` are reported as needing initialization rather than being silently created.
-- **Feature-gated code**: All flake logic is gated behind `#[cfg(feature = "nix")]`. A stub `collect_flake_statuses` exists under `#[cfg(not(feature = "nix"))]` that errors when `--flakes` is passed without the feature compiled in.
+- **Bare and invalid repositories**: Repos that libgit2 cannot open or cannot compute a status for (including bare repos, whose status call errors) are skipped and not counted in "Found N git repositories"
+- **Single walk, no symlinks**: `find_projects` collects git repos and (with `nix`) flakes in one pass, sorted by path. It uses `DirEntry::file_type`, so symlinks are never followed (no loops, no walking into `/nix/store` via `result` links).
+- **Non-mutating flake checks**: `flake::check` invokes `nix flake update --flake <path> --output-lock-file <tempdir>/flake.lock`, so the project's real `flake.lock` is never written. `nix` prints nothing in this mode, so updates are detected by comparing the parsed old and new `nodes`; `-f` then lists the root's direct inputs, resolved by input name (not node key, since nix renumbers keys like `nixpkgs_2`), whose `locked` entry changed, or notes that only transitive inputs changed. Flakes lacking a `flake.lock` are reported as needing initialization rather than being silently created.
+- **Parallel, bounded flake checks**: `flake::check_all` runs up to 8 checks at once; each `nix` process is killed after `--flake-timeout` seconds. Failures keep nix's stderr and are printed.
+- **Feature-gated code**: All flake logic lives in `mod flake` gated behind `#[cfg(feature = "nix")]`, with `serde_json` and `tempfile` as optional dependencies of the feature. Without the feature, `run` errors when `--flakes` is passed.
+- **Exit codes**: `main` returns `ExitCode::FAILURE` when `run` errors.
 
 ## Common Pitfalls
 

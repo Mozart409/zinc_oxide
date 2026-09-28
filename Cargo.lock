@@ -914,6 +914,7 @@ dependencies = [
  "color-eyre",
  "git2",
  "predicates",
+ "serde_json",
  "tempfile",
 ]
 

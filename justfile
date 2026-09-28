@@ -15,6 +15,7 @@ test: clear
 lint:
     @if ! rustc -V | grep -q nightly; then echo "error: just lint must run on the nightly toolchain (matches CI); enter the dev shell with 'nix develop'" >&2; exit 1; fi
     cargo clippy --all-targets --all-features -- -D warnings
+    cargo clippy --all-targets -- -D warnings
     dprint check
 
 deb: clear
