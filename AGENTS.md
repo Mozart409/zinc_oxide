@@ -229,7 +229,7 @@ GitHub Actions workflow (`.github/workflows/rust.yml`):
 
 ## Important Notes
 
-- **Git2 vendored**: The project uses vendored libgit2 to avoid system dependency issues
+- **Git2 vendored**: The project uses vendored libgit2 to avoid system dependency issues. The Nix package is the exception: nixpkgs' cargo setup hook sets `LIBGIT2_NO_VENDOR=1`, so `flake.nix` links the system libgit2 (via `pkg-config`) instead
 - **Hidden directories**: The code intentionally skips hidden directories (starting with `.`) during recursion
 - **Graceful errors**: Permission denied and other IO errors are handled gracefully - directories are skipped rather than causing panics
 - **Bare and invalid repositories**: Repos that libgit2 cannot open or cannot compute a status for (including bare repos, whose status call errors) are skipped and not counted in "Found N git repositories"

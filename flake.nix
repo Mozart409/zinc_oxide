@@ -54,7 +54,11 @@
             # Ship every Cargo feature, so new features reach flake users
             # without touching this file.
             buildFeatures = builtins.attrNames (removeAttrs (cargoToml.features or {}) ["default"]);
-            nativeBuildInputs = [pkgs.makeWrapper];
+            # nixpkgs' cargo setup hook exports LIBGIT2_NO_VENDOR=1, which makes
+            # libgit2-sys ignore the vendored-libgit2 feature and look for a
+            # system libgit2 through pkg-config.
+            nativeBuildInputs = [pkgs.makeWrapper pkgs.pkg-config];
+            buildInputs = [pkgs.libgit2];
             # The flake tests call `nix` against real flakes, which the build
             # sandbox can't do; run only the git report tests.
             cargoTestFlags = ["--test" "cli"];
